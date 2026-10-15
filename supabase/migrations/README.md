@@ -1,0 +1,40 @@
+-- Copy this SQL into your Supabase SQL Editor at:
+-- https://supabase.com/dashboard/project/<your-project-ref>/sql/new
+-- Then click "Run"
+
+-- ─────────────────────────────────────────────────────────────
+-- STEP 1: Create storage buckets in Supabase Dashboard >
+--         Storage > New Bucket
+--
+--  Bucket name: presentations
+--    - Public: OFF
+--    - File size limit: 104857600 (100 MB)
+--    - Allowed MIME types:
+--        application/vnd.ms-powerpoint
+--        application/vnd.openxmlformats-officedocument.presentationml.presentation
+--
+--  Bucket name: resources
+--    - Public: OFF
+--    - File size limit: 52428800 (50 MB)
+--    - Allowed MIME types: (leave empty for all types)
+-- ─────────────────────────────────────────────────────────────
+-- STEP 2: Run the SQL below
+-- ─────────────────────────────────────────────────────────────
+
+-- See supabase_migration.sql in the project scratch directory
+-- or copy the full migration from the implementation docs.
+
+-- STEP 3: After running, set up Storage RLS in Dashboard > Storage > Policies:
+--
+-- presentations bucket:
+--   INSERT policy: authenticated users can upload
+--     USING: auth.role() = 'authenticated'
+--   SELECT policy: only admins can download (enforced via API route)
+--     USING: false  (disable direct public access)
+--
+-- resources bucket:
+--   INSERT policy: admins only
+--     USING: (select role from user_profiles where id = auth.uid()) in ('super_admin','department_admin')
+--   SELECT policy: authenticated users
+--     USING: auth.role() = 'authenticated'
+-- ─────────────────────────────────────────────────────────────
