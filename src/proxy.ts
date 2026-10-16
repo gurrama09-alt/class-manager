@@ -8,6 +8,8 @@ import { createServerClient } from '@supabase/ssr'
 // Public routes — no auth required
 const PUBLIC_ROUTES = [
   '/',
+  '/upload',
+  '/resources',
   '/login',
   '/register',
   '/forgot-password',

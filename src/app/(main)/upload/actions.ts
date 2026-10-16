@@ -16,9 +16,8 @@ export async function submitPresentation(formData: FormData): Promise<SubmitResu
   const supabase = await createClient()
   const admin    = createAdminClient()
 
-  // Verify user is authenticated
+  // Get user if authenticated (optional — students can submit directly)
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'You must be signed in to submit.' }
 
   // Parse form fields
   const roll_number = parseInt(formData.get('roll_number') as string)
@@ -124,7 +123,7 @@ export async function submitPresentation(formData: FormData): Promise<SubmitResu
       file_size: file.size,
       storage_path: storagePath,
       is_latest: true,
-      submitted_by: user.id,
+      submitted_by: user?.id ?? null,
     })
     .select('id')
     .single()
@@ -139,8 +138,8 @@ export async function submitPresentation(formData: FormData): Promise<SubmitResu
   // Write audit log
   await writeAuditLog({
     action: 'presentation_submit',
-    actor_id: user.id,
-    actor_email: user.email,
+    actor_id: user?.id,
+    actor_email: user?.email ?? `${student_name} (Roll: ${rollNum})`,
     entity_type: 'presentation',
     entity_id: (record as { id: string }).id,
     entity_name: `${student_name} - Roll ${rollNum}`,
