@@ -60,9 +60,15 @@ CREATE TABLE IF NOT EXISTS public.departments (
 );
 
 -- Now we can add the FK for user_profiles.department_id
-ALTER TABLE public.user_profiles
-  ADD CONSTRAINT IF NOT EXISTS fk_user_profiles_department
-  FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'fk_user_profiles_department'
+  ) THEN
+    ALTER TABLE public.user_profiles
+      ADD CONSTRAINT fk_user_profiles_department
+      FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.sections (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

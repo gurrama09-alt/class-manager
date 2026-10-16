@@ -29,32 +29,73 @@ export default function Header() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user: authUser } }) => {
-      if (!authUser) { setLoading(false); return }
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
-      setUser(data)
-      setLoading(false)
+
+    const fetchProfile = async (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
+      try {
+        const { data } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .single()
+        if (data) {
+          setUser(data)
+        } else {
+          setUser({
+            id: authUser.id,
+            email: authUser.email ?? '',
+            full_name: (authUser.user_metadata?.full_name as string) ?? authUser.email?.split('@')[0] ?? 'User',
+            role: 'student',
+            department_id: null,
+            is_active: true,
+            avatar_url: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+        }
+      } catch {
+        setUser({
+          id: authUser.id,
+          email: authUser.email ?? '',
+          full_name: (authUser.user_metadata?.full_name as string) ?? authUser.email?.split('@')[0] ?? 'User',
+          role: 'student',
+          department_id: null,
+          is_active: true,
+          avatar_url: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+      if (!authUser) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+      fetchProfile(authUser)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!session?.user) { setUser(null); return }
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-      setUser(data)
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session?.user) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+      fetchProfile(session.user)
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
+    setUser(null)
     router.push('/login')
+    router.refresh()
   }
 
   const isAdmin = user?.role === 'super_admin' || user?.role === 'department_admin'

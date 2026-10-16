@@ -3,12 +3,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { connection } from 'next/server'
 
 export async function createClient() {
-  // connection() tells Next.js 16 this must run at request time (not prerender)
-  await connection()
-
   const cookieStore = await cookies()
 
   return createServerClient(

@@ -4,9 +4,6 @@ import './globals.css'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { ToastProvider } from '@/components/providers/ToastProvider'
 
-// Disable instant prerender validation — every route in this app performs
-// per-request authentication and database queries (cookies, Supabase).
-export const instant = false
 
 export const metadata: Metadata = {
   title: {

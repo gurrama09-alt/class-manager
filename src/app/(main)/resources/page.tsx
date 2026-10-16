@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import ResourcesPageClient from './ResourcesPageClient'
 
 export const metadata: Metadata = { title: 'Study Resources' }
+export const dynamic = 'force-dynamic'
 
 export default async function ResourcesPage() {
   const supabase = await createClient()

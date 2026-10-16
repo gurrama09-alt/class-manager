@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import AuditLogClient from './AuditLogClient'
 
 export const metadata: Metadata = { title: 'Audit Log' }
+export const dynamic = 'force-dynamic'
 
 export default async function AuditLogPage() {
   const supabase = await createClient()

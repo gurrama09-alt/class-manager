@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import UploadPageClient from './UploadPageClient'
 
 export const metadata: Metadata = { title: 'Submit Presentation' }
+export const dynamic = 'force-dynamic'
 
 export default async function UploadPage() {
   const supabase = await createClient()
