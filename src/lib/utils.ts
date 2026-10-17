@@ -99,3 +99,28 @@ export function debounce<T extends (...args: unknown[]) => void>(fn: T, delay: n
     timer = setTimeout(() => fn(...args), delay)
   }
 }
+
+/** Translate auth errors into clear, friendly user-facing messages */
+export function getAuthErrorMessage(err: unknown): string {
+  const msg =
+    typeof err === 'string'
+      ? err
+      : (err as { message?: string })?.message || ''
+
+  if (!msg) return 'An unexpected error occurred. Please try again.'
+
+  const lower = msg.toLowerCase()
+  if (lower.includes('failed to fetch')) {
+    return 'Unable to reach the server. Please check your internet connection, disable ad-blockers / shields, or restart your dev server.'
+  }
+  if (lower.includes('invalid login credentials')) {
+    return 'Invalid email or password. Please verify your credentials and try again.'
+  }
+  if (lower.includes('user already registered')) {
+    return 'An account with this email already exists. Please sign in instead.'
+  }
+  if (lower.includes('email not confirmed')) {
+    return 'Your email address is not verified yet. Please check your inbox for the confirmation email.'
+  }
+  return msg
+}

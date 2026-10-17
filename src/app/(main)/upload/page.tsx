@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import type { AcademicSettings } from '@/types/database'
 import UploadPageClient from './UploadPageClient'
 
 export const metadata: Metadata = { title: 'Submit Presentation' }
@@ -10,8 +11,7 @@ export default async function UploadPage() {
   let sections: any[] = []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let subjects: any[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let settings: any = null
+  let settings: AcademicSettings | null = null
 
   try {
     const supabase = await createClient()
@@ -41,7 +41,7 @@ export default async function UploadPage() {
       dept_name: (Array.isArray(s.departments) ? s.departments[0]?.name : s.departments?.name) as string | undefined,
     }))
 
-    settings = settingsRaw as any
+    settings = (settingsRaw as unknown as AcademicSettings) ?? null
   } catch (err) {
     console.error('Error fetching upload page data:', err)
   }

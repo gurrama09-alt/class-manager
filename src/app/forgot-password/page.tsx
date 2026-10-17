@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { GraduationCap, Mail, ArrowLeft, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/providers/ToastProvider'
+import { getAuthErrorMessage } from '@/lib/utils'
 
 export default function ForgotPasswordPage() {
   const { error: showError, success } = useToast()
@@ -21,9 +22,11 @@ export default function ForgotPasswordPage() {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       })
-      if (error) { showError(error.message); return }
+      if (error) { showError(getAuthErrorMessage(error)); return }
       setSent(true)
       success('Password reset email sent!')
+    } catch (err) {
+      showError(getAuthErrorMessage(err))
     } finally {
       setLoading(false)
     }

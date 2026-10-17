@@ -20,8 +20,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem('cm-theme') as Theme | null
     const resolved = stored ?? 'dark'
-    setTheme(resolved)
     document.documentElement.setAttribute('data-theme', resolved)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTheme(resolved)
   }, [])
 
   const toggle = () => {

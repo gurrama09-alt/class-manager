@@ -7,6 +7,7 @@ import { GraduationCap, Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide
 import { createClient } from '@/lib/supabase/client'
 import { RegisterSchema } from '@/lib/validators'
 import { useToast } from '@/components/providers/ToastProvider'
+import { getAuthErrorMessage } from '@/lib/utils'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -41,9 +42,11 @@ export default function RegisterPage() {
         password,
         options: { data: { full_name } },
       })
-      if (error) { showError(error.message); return }
+      if (error) { showError(getAuthErrorMessage(error)); return }
       success('Account created! Please check your email to confirm.')
       router.push('/login')
+    } catch (err) {
+      showError(getAuthErrorMessage(err))
     } finally {
       setLoading(false)
     }

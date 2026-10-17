@@ -7,6 +7,7 @@ import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react
 import { createClient } from '@/lib/supabase/client'
 import { LoginSchema } from '@/lib/validators'
 import { useToast } from '@/components/providers/ToastProvider'
+import { getAuthErrorMessage } from '@/lib/utils'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -38,13 +39,15 @@ export default function LoginPage() {
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
-        showError(error.message)
+        showError(getAuthErrorMessage(error))
         return
       }
       success('Signed in successfully!')
       const redirect = params.get('redirect') ?? '/upload'
       router.push(redirect)
       router.refresh()
+    } catch (err) {
+      showError(getAuthErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -150,7 +153,9 @@ export default function LoginPage() {
                       redirectTo: `${window.location.origin}/auth/callback`,
                     },
                   })
-                  if (error) showError(error.message)
+                  if (error) showError(getAuthErrorMessage(error))
+                } catch (err) {
+                  showError(getAuthErrorMessage(err))
                 } finally {
                   setLoading(false)
                 }

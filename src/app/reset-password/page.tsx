@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { GraduationCap, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/providers/ToastProvider'
+import { getAuthErrorMessage } from '@/lib/utils'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -24,10 +25,12 @@ export default function ResetPasswordPage() {
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.updateUser({ password })
-      if (error) { showError(error.message); return }
+      if (error) { showError(getAuthErrorMessage(error)); return }
       setDone(true)
       success('Password updated!')
       setTimeout(() => router.push('/login'), 2000)
+    } catch (err) {
+      showError(getAuthErrorMessage(err))
     } finally {
       setLoading(false)
     }
