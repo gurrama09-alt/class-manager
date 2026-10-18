@@ -3,7 +3,6 @@
 import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { X, UploadCloud, FileText } from 'lucide-react'
-import { uploadResource } from '@/app/(main)/resources/actions'
 import { formatFileSize } from '@/lib/utils'
 import { useToast } from '@/components/providers/ToastProvider'
 import type { AcademicSettings } from '@/types/database'
@@ -83,15 +82,21 @@ export default function UploadResourceModal({ departments, subjects, settings, o
       const fd = new FormData()
       Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v) })
       fd.append('file', file!)
-      const result = await uploadResource(fd)
-      if (result.success) {
+
+      const res = await fetch('/api/resources/upload', {
+        method: 'POST',
+        body: fd,
+      })
+
+      const result = await res.json()
+      if (res.ok && result.success) {
         onSuccess(result.resource ?? {})
       } else {
         showError(result.error ?? 'Upload failed')
       }
     } catch (err: unknown) {
       console.error('[UploadResourceModal] Error:', err)
-      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.'
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please check your connection and try again.'
       showError(msg)
     } finally {
       setLoading(false)

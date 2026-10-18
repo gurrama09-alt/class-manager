@@ -23,7 +23,12 @@ const PUBLIC_ROUTES = [
 const ADMIN_PREFIX = '/admin'
 
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  // Pass through Server Actions and API calls directly to prevent stream/header corruption
+  if (request.headers.get('next-action') || request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
+
+  let supabaseResponse = NextResponse.next()
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return supabaseResponse
