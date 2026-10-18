@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { X, UploadCloud, FileText } from 'lucide-react'
 import { formatFileSize } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/providers/ToastProvider'
 import type { AcademicSettings } from '@/types/database'
 
@@ -79,20 +80,70 @@ export default function UploadResourceModal({ departments, subjects, settings, o
 
     setLoading(true)
     try {
-      const fd = new FormData()
-      Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v) })
-      fd.append('file', file!)
-
-      const res = await fetch('/api/resources/upload', {
+      // 1. Get signed upload authorization from API (tiny JSON payload < 1 KB)
+      const signRes = await fetch('/api/resources/upload', {
         method: 'POST',
-        body: fd,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'get_upload_url',
+          filename: file!.name,
+          category: form.category,
+          department_id: form.department_id,
+          fileSize: file!.size,
+        }),
       })
 
-      const result = await res.json()
-      if (res.ok && result.success) {
-        onSuccess(result.resource ?? {})
+      const signData = await signRes.json().catch(() => ({}))
+      if (!signRes.ok || !signData.success) {
+        showError(signData.error ?? 'Failed to initialize upload')
+        setLoading(false)
+        return
+      }
+
+      // 2. Upload file directly to Supabase Storage (bypasses Next.js server limits completely!)
+      const supabase = createClient()
+      const { error: uploadError } = await supabase.storage
+        .from('resources')
+        .uploadToSignedUrl(signData.path, signData.token, file!, {
+          contentType: file!.type || 'application/octet-stream',
+          upsert: false,
+        })
+
+      if (uploadError) {
+        showError(`Storage upload failed: ${uploadError.message}`)
+        setLoading(false)
+        return
+      }
+
+      // 3. Save resource record in database (tiny JSON payload < 1 KB)
+      const saveRes = await fetch('/api/resources/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'complete',
+          resourceData: {
+            title: form.title.trim(),
+            category: form.category,
+            department_id: form.department_id,
+            section_id: form.section_id || null,
+            subject_id: form.subject_id || null,
+            semester: form.semester ? parseInt(form.semester) : null,
+            unit_number: form.unit_number ? parseInt(form.unit_number) : null,
+            sequence_number: parseInt(form.sequence_number) || 1,
+            academic_year: form.academic_year || '2024-25',
+            description: form.description.trim() || null,
+          },
+          file_name: file!.name,
+          file_size: file!.size,
+          storage_path: signData.storagePath,
+        }),
+      })
+
+      const saveData = await saveRes.json().catch(() => ({}))
+      if (saveRes.ok && saveData.success) {
+        onSuccess(saveData.resource ?? {})
       } else {
-        showError(result.error ?? 'Upload failed')
+        showError(saveData.error ?? 'Failed to save resource details')
       }
     } catch (err: unknown) {
       console.error('[UploadResourceModal] Error:', err)
