@@ -10,87 +10,109 @@ import { generateStoragePath, sanitizeFilename } from '@/lib/utils'
 
 // ─── Upload Resource ──────────────────────────────────────────────────────────
 export async function uploadResource(formData: FormData) {
-  const user = await requireRole(['super_admin', 'department_admin'])
-  const admin = createAdminClient()
+  try {
+    let user
+    try {
+      user = await requireRole(['super_admin', 'department_admin'])
+    } catch (authErr) {
+      const msg = authErr instanceof Error ? authErr.message : ''
+      if (msg === 'UNAUTHORIZED') {
+        return { success: false, error: 'You are not logged in. Please sign in as an admin.' }
+      }
+      return { success: false, error: 'You do not have permission to upload resources (Admin access required).' }
+    }
 
-  const fieldData = {
-    title:           formData.get('title') as string,
-    category:        formData.get('category') as string,
-    department_id:   formData.get('department_id') as string,
-    section_id:      (formData.get('section_id') as string) || null,
-    subject_id:      (formData.get('subject_id') as string) || null,
-    semester:        formData.get('semester') ? parseInt(formData.get('semester') as string) : null,
-    unit_number:     formData.get('unit_number') ? parseInt(formData.get('unit_number') as string) : null,
-    sequence_number: parseInt(formData.get('sequence_number') as string) || 1,
-    academic_year:   formData.get('academic_year') as string,
-    description:     (formData.get('description') as string) || null,
-  }
+    const admin = createAdminClient()
 
-  const parsed = ResourceUploadSchema.safeParse(fieldData)
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
-  }
+    const seqRaw = parseInt(formData.get('sequence_number') as string)
+    const semRaw = formData.get('semester') ? parseInt(formData.get('semester') as string) : null
+    const unitRaw = formData.get('unit_number') ? parseInt(formData.get('unit_number') as string) : null
 
-  if (user.role === 'department_admin' && user.department_id !== parsed.data.department_id) {
-    return { success: false, error: 'You can only upload resources for your own department.' }
-  }
+    const fieldData = {
+      title:           (formData.get('title') as string)?.trim(),
+      category:        (formData.get('category') as string)?.trim(),
+      department_id:   (formData.get('department_id') as string)?.trim(),
+      section_id:      (formData.get('section_id') as string)?.trim() || null,
+      subject_id:      (formData.get('subject_id') as string)?.trim() || null,
+      semester:        semRaw && !isNaN(semRaw) ? semRaw : null,
+      unit_number:     unitRaw && !isNaN(unitRaw) ? unitRaw : null,
+      sequence_number: isNaN(seqRaw) || seqRaw < 1 ? 1 : seqRaw,
+      academic_year:   (formData.get('academic_year') as string)?.trim() || '2024-25',
+      description:     (formData.get('description') as string)?.trim() || null,
+    }
 
-  const file = formData.get('file') as File | null
-  if (!file || file.size === 0) return { success: false, error: 'Please select a file.' }
+    const parsed = ResourceUploadSchema.safeParse(fieldData)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+    }
 
-  const supabase = await createClient()
-  const { data: settingsRaw } = await supabase.from('academic_settings').select('max_resource_size_mb').single()
-  const settings = settingsRaw as { max_resource_size_mb?: number } | null
-  const maxMb = settings?.max_resource_size_mb ?? 50
-  if (file.size > maxMb * 1024 * 1024) {
-    return { success: false, error: `File exceeds the ${maxMb} MB limit.` }
-  }
+    if (user.role === 'department_admin' && user.department_id !== parsed.data.department_id) {
+      return { success: false, error: 'You can only upload resources for your own department.' }
+    }
 
-  const storagePath = generateStoragePath(
-    'resources',
-    `${parsed.data.department_id}/${parsed.data.category}`,
-    sanitizeFilename(file.name)
-  )
+    const file = formData.get('file') as File | null
+    if (!file || file.size === 0) return { success: false, error: 'Please select a file.' }
 
-  const fileBuffer = await file.arrayBuffer()
-  const { error: uploadError } = await admin.storage
-    .from('resources')
-    .upload(storagePath, fileBuffer, { contentType: file.type, upsert: false })
+    const supabase = await createClient()
+    const { data: settingsRaw } = await supabase.from('academic_settings').select('max_resource_size_mb').single()
+    const settings = settingsRaw as { max_resource_size_mb?: number } | null
+    const maxMb = settings?.max_resource_size_mb ?? 50
+    if (file.size > maxMb * 1024 * 1024) {
+      return { success: false, error: `File exceeds the ${maxMb} MB limit.` }
+    }
 
-  if (uploadError) {
-    return { success: false, error: 'File upload failed. Please try again.' }
-  }
+    const storagePath = generateStoragePath(
+      'resources',
+      `${parsed.data.department_id}/${parsed.data.category}`,
+      sanitizeFilename(file.name)
+    )
 
-  const { data: record, error: dbError } = await admin
-    .from('resources')
-    .insert({
-      ...parsed.data,
-      file_name:    file.name,
-      file_size:    file.size,
-      file_type:    file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
-      storage_path: storagePath,
-      uploaded_by:  user.id,
+    const fileBuffer = await file.arrayBuffer()
+    const { error: uploadError } = await admin.storage
+      .from('resources')
+      .upload(storagePath, fileBuffer, { contentType: file.type || 'application/octet-stream', upsert: false })
+
+    if (uploadError) {
+      console.error('[Upload] Storage error:', uploadError)
+      return { success: false, error: `File upload failed: ${uploadError.message}` }
+    }
+
+    const { data: record, error: dbError } = await admin
+      .from('resources')
+      .insert({
+        ...parsed.data,
+        file_name:    file.name,
+        file_size:    file.size,
+        file_type:    file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
+        storage_path: storagePath,
+        uploaded_by:  user.id,
+      })
+      .select('*, departments(id,name), sections(id,name), subjects(id,name,code)')
+      .single()
+
+    if (dbError) {
+      await admin.storage.from('resources').remove([storagePath])
+      console.error('[Upload] DB error:', dbError)
+      return { success: false, error: `Failed to save resource: ${dbError.message}` }
+    }
+
+    await writeAuditLog({
+      action: 'resource_upload',
+      actor_id:     user.id,
+      actor_email:  user.email,
+      entity_type:  'resource',
+      entity_id:    (record as { id: string }).id,
+      entity_name:  parsed.data.title,
+      department_id: parsed.data.department_id,
+      description:  `Uploaded ${parsed.data.category}: ${parsed.data.title}`,
     })
-    .select('id')
-    .single()
 
-  if (dbError) {
-    await admin.storage.from('resources').remove([storagePath])
-    return { success: false, error: 'Failed to save resource. Please try again.' }
+    return { success: true, id: (record as { id: string }).id, resource: record }
+  } catch (err: unknown) {
+    console.error('[Upload] Unexpected error:', err)
+    const message = err instanceof Error ? err.message : 'Upload failed'
+    return { success: false, error: message }
   }
-
-  await writeAuditLog({
-    action: 'resource_upload',
-    actor_id:     user.id,
-    actor_email:  user.email,
-    entity_type:  'resource',
-    entity_id:    (record as { id: string }).id,
-    entity_name:  parsed.data.title,
-    department_id: parsed.data.department_id,
-    description:  `Uploaded ${parsed.data.category}: ${parsed.data.title}`,
-  })
-
-  return { success: true, id: (record as { id: string }).id }
 }
 
 // ─── Delete Resource ──────────────────────────────────────────────────────────

@@ -13,139 +13,145 @@ interface SubmitResult {
 }
 
 export async function submitPresentation(formData: FormData): Promise<SubmitResult> {
-  const supabase = await createClient()
-  const admin    = createAdminClient()
+  try {
+    const supabase = await createClient()
+    const admin    = createAdminClient()
 
-  // Get user if authenticated (optional — students can submit directly)
-  const { data: { user } } = await supabase.auth.getUser()
+    // Get user if authenticated (optional — students can submit directly)
+    const { data: { user } } = await supabase.auth.getUser()
 
-  // Parse form fields
-  const roll_number = parseInt(formData.get('roll_number') as string)
-  const parsed = PresentationSubmitSchema.safeParse({
-    student_name: formData.get('student_name'),
-    roll_number: isNaN(roll_number) ? undefined : roll_number,
-    section_id:  formData.get('section_id'),
-    subject_id:  formData.get('subject_id'),
-    academic_year: formData.get('academic_year'),
-  })
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
-  }
-
-  // Validate file
-  const file = formData.get('file') as File | null
-  if (!file || file.size === 0) return { success: false, error: 'Please select a PowerPoint file.' }
-
-  const allowedTypes = [
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ]
-  if (!allowedTypes.includes(file.type)) {
-    return { success: false, error: 'Only .ppt and .pptx files are allowed.' }
-  }
-
-  // Get settings for size limit
-  const { data: settings } = await supabase.from('academic_settings').select('*').single()
-  const maxMb = (settings as { max_ppt_size_mb?: number } | null)?.max_ppt_size_mb ?? 100
-  if (file.size > maxMb * 1024 * 1024) {
-    return { success: false, error: `File exceeds the ${maxMb} MB limit.` }
-  }
-
-  const { student_name, roll_number: rollNum, section_id, subject_id, academic_year } = parsed.data
-
-  // Verify section and subject exist
-  const [sectionRes, subjectRes] = await Promise.all([
-    supabase.from('sections').select('id, department_id').eq('id', section_id).single(),
-    supabase.from('subjects').select('id, department_id').eq('id', subject_id).single(),
-  ])
-  if (sectionRes.error) return { success: false, error: 'Invalid section selected.' }
-  if (subjectRes.error) return { success: false, error: 'Invalid subject selected.' }
-
-  const allowResubmission = (settings as { allow_resubmission?: boolean } | null)?.allow_resubmission ?? false
-
-  // Check for duplicate (only if resubmission is disabled)
-  if (!allowResubmission) {
-    const { data: existing } = await supabase
-      .from('presentations')
-      .select('id')
-      .eq('roll_number', rollNum)
-      .eq('subject_id', subject_id)
-      .eq('academic_year', academic_year)
-      .eq('is_latest', true)
-      .single()
-    if (existing) {
-      return { success: false, error: 'You have already submitted for this subject. Resubmission is currently disabled.' }
+    // Parse form fields
+    const roll_number = parseInt(formData.get('roll_number') as string)
+    const parsed = PresentationSubmitSchema.safeParse({
+      student_name: formData.get('student_name'),
+      roll_number: isNaN(roll_number) ? undefined : roll_number,
+      section_id:  formData.get('section_id'),
+      subject_id:  formData.get('subject_id'),
+      academic_year: formData.get('academic_year'),
+    })
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
     }
-  }
 
-  // Upload file to Supabase Storage
-  const safeFilename = sanitizeFilename(file.name)
-  const storagePath = generateStoragePath(
-    'presentations',
-    `${academic_year}/${subject_id}`,
-    `${rollNum}_${student_name}_${safeFilename}`
-  )
+    // Validate file
+    const file = formData.get('file') as File | null
+    if (!file || file.size === 0) return { success: false, error: 'Please select a PowerPoint file.' }
 
-  const fileBuffer = await file.arrayBuffer()
-  const { error: uploadError } = await admin.storage
-    .from('presentations')
-    .upload(storagePath, fileBuffer, {
-      contentType: file.type,
-      upsert: false,
-    })
+    const allowedTypes = [
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ]
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: 'Only .ppt and .pptx files are allowed.' }
+    }
 
-  if (uploadError) {
-    console.error('[Upload] Storage error:', uploadError)
-    return { success: false, error: 'File upload failed. Please try again.' }
-  }
+    // Get settings for size limit
+    const { data: settings } = await supabase.from('academic_settings').select('*').single()
+    const maxMb = (settings as { max_ppt_size_mb?: number } | null)?.max_ppt_size_mb ?? 100
+    if (file.size > maxMb * 1024 * 1024) {
+      return { success: false, error: `File exceeds the ${maxMb} MB limit.` }
+    }
 
-  // If resubmission allowed, mark old submissions as not latest
-  if (allowResubmission) {
-    await admin
+    const { student_name, roll_number: rollNum, section_id, subject_id, academic_year } = parsed.data
+
+    // Verify section and subject exist
+    const [sectionRes, subjectRes] = await Promise.all([
+      supabase.from('sections').select('id, department_id').eq('id', section_id).single(),
+      supabase.from('subjects').select('id, department_id').eq('id', subject_id).single(),
+    ])
+    if (sectionRes.error) return { success: false, error: 'Invalid section selected.' }
+    if (subjectRes.error) return { success: false, error: 'Invalid subject selected.' }
+
+    const allowResubmission = (settings as { allow_resubmission?: boolean } | null)?.allow_resubmission ?? false
+
+    // Check for duplicate (only if resubmission is disabled)
+    if (!allowResubmission) {
+      const { data: existing } = await supabase
+        .from('presentations')
+        .select('id')
+        .eq('roll_number', rollNum)
+        .eq('subject_id', subject_id)
+        .eq('academic_year', academic_year)
+        .eq('is_latest', true)
+        .single()
+      if (existing) {
+        return { success: false, error: 'You have already submitted for this subject. Resubmission is currently disabled.' }
+      }
+    }
+
+    // Upload file to Supabase Storage
+    const safeFilename = sanitizeFilename(file.name)
+    const storagePath = generateStoragePath(
+      'presentations',
+      `${academic_year}/${subject_id}`,
+      `${rollNum}_${student_name}_${safeFilename}`
+    )
+
+    const fileBuffer = await file.arrayBuffer()
+    const { error: uploadError } = await admin.storage
       .from('presentations')
-      .update({ is_latest: false })
-      .eq('roll_number', rollNum)
-      .eq('subject_id', subject_id)
-      .eq('academic_year', academic_year)
-  }
+      .upload(storagePath, fileBuffer, {
+        contentType: file.type,
+        upsert: false,
+      })
 
-  // Save metadata to database
-  const { data: record, error: dbError } = await admin
-    .from('presentations')
-    .insert({
-      student_name,
-      roll_number: rollNum,
-      section_id,
-      subject_id,
+    if (uploadError) {
+      console.error('[Upload] Storage error:', uploadError)
+      return { success: false, error: `File upload failed: ${uploadError.message}` }
+    }
+
+    // If resubmission allowed, mark old submissions as not latest
+    if (allowResubmission) {
+      await admin
+        .from('presentations')
+        .update({ is_latest: false })
+        .eq('roll_number', rollNum)
+        .eq('subject_id', subject_id)
+        .eq('academic_year', academic_year)
+    }
+
+    // Save metadata to database
+    const { data: record, error: dbError } = await admin
+      .from('presentations')
+      .insert({
+        student_name,
+        roll_number: rollNum,
+        section_id,
+        subject_id,
+        department_id: (subjectRes.data as { department_id: string }).department_id,
+        academic_year,
+        file_name: file.name,
+        file_size: file.size,
+        storage_path: storagePath,
+        is_latest: true,
+        submitted_by: user?.id ?? null,
+      })
+      .select('id')
+      .single()
+
+    if (dbError) {
+      // Roll back storage upload
+      await admin.storage.from('presentations').remove([storagePath])
+      console.error('[Upload] DB error:', dbError)
+      return { success: false, error: `Failed to save submission: ${dbError.message}` }
+    }
+
+    // Write audit log
+    await writeAuditLog({
+      action: 'presentation_submit',
+      actor_id: user?.id,
+      actor_email: user?.email ?? `${student_name} (Roll: ${rollNum})`,
+      entity_type: 'presentation',
+      entity_id: (record as { id: string }).id,
+      entity_name: `${student_name} - Roll ${rollNum}`,
       department_id: (subjectRes.data as { department_id: string }).department_id,
-      academic_year,
-      file_name: file.name,
-      file_size: file.size,
-      storage_path: storagePath,
-      is_latest: true,
-      submitted_by: user?.id ?? null,
+      description: `Submitted presentation for subject ${subject_id}`,
     })
-    .select('id')
-    .single()
 
-  if (dbError) {
-    // Roll back storage upload
-    await admin.storage.from('presentations').remove([storagePath])
-    console.error('[Upload] DB error:', dbError)
-    return { success: false, error: 'Failed to save submission. Please try again.' }
+    return { success: true, id: (record as { id: string }).id }
+  } catch (err: unknown) {
+    console.error('[SubmitPresentation] Unexpected error:', err)
+    const message = err instanceof Error ? err.message : 'Submission failed'
+    return { success: false, error: message }
   }
-
-  // Write audit log
-  await writeAuditLog({
-    action: 'presentation_submit',
-    actor_id: user?.id,
-    actor_email: user?.email ?? `${student_name} (Roll: ${rollNum})`,
-    entity_type: 'presentation',
-    entity_id: (record as { id: string }).id,
-    entity_name: `${student_name} - Roll ${rollNum}`,
-    department_id: (subjectRes.data as { department_id: string }).department_id,
-    description: `Submitted presentation for subject ${subject_id}`,
-  })
-
-  return { success: true, id: (record as { id: string }).id }
 }

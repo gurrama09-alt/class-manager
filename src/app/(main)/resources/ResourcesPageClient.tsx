@@ -291,7 +291,9 @@ export default function ResourcesPageClient({ resources: initial, departments, s
           settings={settings}
           onClose={() => setShowUpload(false)}
           onSuccess={(resource) => {
-            setResources((prev) => [resource as unknown as Resource, ...prev])
+            if (resource && (resource as Resource).id) {
+              setResources((prev) => [resource as unknown as Resource, ...prev])
+            }
             setShowUpload(false)
             success('Resource uploaded successfully!')
           }}

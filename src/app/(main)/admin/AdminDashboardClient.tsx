@@ -248,7 +248,9 @@ export default function AdminDashboardClient({
           settings={settings}
           onClose={() => setShowUpload(false)}
           onSuccess={(res) => {
-            setResources((prev) => [res as Resource, ...prev])
+            if (res && (res as Resource).id) {
+              setResources((prev) => [res as Resource, ...prev])
+            }
             setShowUpload(false)
             success('Resource uploaded!')
           }}

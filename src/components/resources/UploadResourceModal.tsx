@@ -85,10 +85,14 @@ export default function UploadResourceModal({ departments, subjects, settings, o
       fd.append('file', file!)
       const result = await uploadResource(fd)
       if (result.success) {
-        onSuccess({})
+        onSuccess(result.resource ?? {})
       } else {
         showError(result.error ?? 'Upload failed')
       }
+    } catch (err: unknown) {
+      console.error('[UploadResourceModal] Error:', err)
+      const msg = err instanceof Error ? err.message : 'Upload failed. Please try again.'
+      showError(msg)
     } finally {
       setLoading(false)
     }
