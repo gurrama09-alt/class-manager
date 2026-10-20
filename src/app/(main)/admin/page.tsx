@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import AdminDashboardClient from './AdminDashboardClient'
 
 export const metadata: Metadata = { title: 'Admin Dashboard' }
@@ -15,6 +16,8 @@ export default async function AdminPage() {
   if (!profile || (profile.role !== 'super_admin' && profile.role !== 'department_admin')) {
     redirect('/unauthorized')
   }
+
+  const adminClient = createAdminClient()
 
   // Fetch all dashboard data in parallel
   const [
@@ -33,7 +36,7 @@ export default async function AdminPage() {
     supabase.from('subjects').select('*, departments(id,name)').eq('is_active', true),
     supabase.from('sections').select('*, departments(id,name)').eq('is_active', true),
     supabase.from('academic_settings').select('*').single(),
-    supabase.from('admin_authorizations').select('*, departments(id,name)').order('invited_at', { ascending: false }),
+    adminClient.from('admin_authorizations').select('*, departments(id,name)').order('invited_at', { ascending: false }),
     supabase.from('resources').select('*', { count: 'exact', head: true }).not('download_count', 'eq', 0),
   ])
 

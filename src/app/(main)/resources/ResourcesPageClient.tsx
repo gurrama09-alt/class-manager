@@ -112,16 +112,16 @@ export default function ResourcesPageClient({ resources: initial, departments, s
   }, [showError])
 
   return (
-    <div className="container">
+    <div className="container" style={{ paddingBottom: 40 }}>
       {/* Header */}
       <div className="page-header">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+        <div className="resources-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <h1 className="page-title">Study Resources</h1>
             <p className="page-subtitle">Browse and download Question Banks, Lab Manuals, Assignments, and Syllabus.</p>
           </div>
           {isAdmin && (
-            <button className="btn btn-primary" onClick={() => setShowUpload(true)}>
+            <button className="btn btn-primary resources-upload-btn" onClick={() => setShowUpload(true)}>
               <Upload size={15} /> Upload Resource
             </button>
           )}
@@ -129,7 +129,7 @@ export default function ResourcesPageClient({ resources: initial, departments, s
       </div>
 
       {/* Category cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+      <div className="category-grid">
         {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => {
           const Icon = cfg.icon
           const isActive = activeCategory === key
@@ -155,7 +155,7 @@ export default function ResourcesPageClient({ resources: initial, departments, s
 
       {/* Search & filters bar */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, position: 'relative', minWidth: 200 }}>
+        <div style={{ flex: '1 1 200px', position: 'relative' }}>
           <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input className="input" style={{ paddingLeft: 36 }} placeholder="Search resources…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
@@ -172,11 +172,11 @@ export default function ResourcesPageClient({ resources: initial, departments, s
       {/* Filter panel */}
       {showFilters && (
         <div className="card" style={{ padding: 16, marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <select className="input" style={{ width: 'auto', minWidth: 160 }} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+          <select className="input" style={{ flex: '1 1 160px', minWidth: 140 }} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
             <option value="">All Departments</option>
             {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
-          <select className="input" style={{ width: 'auto', minWidth: 140 }} value={filterSemester} onChange={(e) => setFilterSemester(e.target.value)}>
+          <select className="input" style={{ flex: '1 1 140px', minWidth: 140 }} value={filterSemester} onChange={(e) => setFilterSemester(e.target.value)}>
             <option value="">All Semesters</option>
             {[1,2,3,4,5,6,7,8].map((s) => <option key={s} value={s}>Semester {s}</option>)}
           </select>
@@ -212,71 +212,153 @@ export default function ResourcesPageClient({ resources: initial, departments, s
                 <span className="badge badge-gray">{items.length}</span>
               </div>
 
-              <div className="card" style={{ overflow: 'hidden' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {selectMode && <th style={{ width: 40 }}></th>}
-                      <th>Title</th>
-                      <th>Subject</th>
-                      <th>Sem</th>
-                      <th>Unit</th>
-                      <th>Type</th>
-                      <th>Size</th>
-                      <th>Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((r, idx) => (
-                      <tr key={r.id}>
-                        {selectMode && (
-                          <td>
-                            <input type="checkbox" checked={selected.has(r.id)} onChange={(e) => {
-                              const next = new Set(selected)
-                              e.target.checked ? next.add(r.id) : next.delete(r.id)
-                              setSelected(next)
-                            }} />
-                          </td>
-                        )}
-                        <td>
-                          <div style={{ fontWeight: 500 }}>{r.title}</div>
-                          {r.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
-                        </td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                          {(r as unknown as { subjects?: { name?: string } }).subjects?.name ?? '—'}
-                        </td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{r.semester ?? '—'}</td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{r.unit_number ?? '—'}</td>
-                        <td>
-                          <span className="badge badge-gray" style={{ fontSize: 10 }}>{r.file_type}</span>
-                        </td>
-                        <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{formatFileSize(r.file_size)}</td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(r.created_at)}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => handleDownload(r.id)} className="btn btn-ghost btn-sm" style={{ padding: 6 }} title="Download">
-                              <Download size={14} />
-                            </button>
-                            {isAdmin && (
-                              <>
-                                <button onClick={() => handleMove(r.id, 'up')} className="btn btn-ghost btn-sm" style={{ padding: 6 }} disabled={idx === 0} title="Move up">
-                                  <ChevronUp size={14} />
-                                </button>
-                                <button onClick={() => handleMove(r.id, 'down')} className="btn btn-ghost btn-sm" style={{ padding: 6 }} disabled={idx === items.length - 1} title="Move down">
-                                  <ChevronDown size={14} />
-                                </button>
-                                <button onClick={() => setConfirmDelete(r.id)} className="btn btn-ghost btn-sm" style={{ padding: 6, color: 'var(--accent-red)' }} title="Delete">
-                                  <Trash2 size={14} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
+              {/* Desktop Table View */}
+              <div className="resources-desktop-view">
+                <div className="card table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        {selectMode && <th style={{ width: 40 }}></th>}
+                        <th>Title</th>
+                        <th>Subject</th>
+                        <th>Sem</th>
+                        <th>Unit</th>
+                        <th>Type</th>
+                        <th>Size</th>
+                        <th>Date</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {items.map((r, idx) => (
+                        <tr key={r.id}>
+                          {selectMode && (
+                            <td>
+                              <input type="checkbox" checked={selected.has(r.id)} onChange={(e) => {
+                                const next = new Set(selected)
+                                e.target.checked ? next.add(r.id) : next.delete(r.id)
+                                setSelected(next)
+                              }} />
+                            </td>
+                          )}
+                          <td>
+                            <div style={{ fontWeight: 500 }}>{r.title}</div>
+                            {r.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.description}</div>}
+                          </td>
+                          <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                            {(r as unknown as { subjects?: { name?: string } }).subjects?.name ?? '—'}
+                          </td>
+                          <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{r.semester ?? '—'}</td>
+                          <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{r.unit_number ?? '—'}</td>
+                          <td>
+                            <span className="badge badge-gray" style={{ fontSize: 10 }}>{r.file_type}</span>
+                          </td>
+                          <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{formatFileSize(r.file_size)}</td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(r.created_at)}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button onClick={() => handleDownload(r.id)} className="btn btn-ghost btn-sm" style={{ padding: 6 }} title="Download">
+                                <Download size={14} />
+                              </button>
+                              {isAdmin && (
+                                <>
+                                  <button onClick={() => handleMove(r.id, 'up')} className="btn btn-ghost btn-sm" style={{ padding: 6 }} disabled={idx === 0} title="Move up">
+                                    <ChevronUp size={14} />
+                                  </button>
+                                  <button onClick={() => handleMove(r.id, 'down')} className="btn btn-ghost btn-sm" style={{ padding: 6 }} disabled={idx === items.length - 1} title="Move down">
+                                    <ChevronDown size={14} />
+                                  </button>
+                                  <button onClick={() => setConfirmDelete(r.id)} className="btn btn-ghost btn-sm" style={{ padding: 6, color: 'var(--accent-red)' }} title="Delete">
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="resources-mobile-view">
+                {items.map((r, idx) => (
+                  <div key={r.id} className="resource-card-mobile card">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                      {selectMode && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(r.id)}
+                          onChange={(e) => {
+                            const next = new Set(selected)
+                            e.target.checked ? next.add(r.id) : next.delete(r.id)
+                            setSelected(next)
+                          }}
+                          style={{ marginTop: 4 }}
+                        />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                          {r.title}
+                        </div>
+                        {r.description && (
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                            {r.description}
+                          </div>
+                        )}
+                      </div>
+                      <span className="badge badge-gray" style={{ fontSize: 10, flexShrink: 0 }}>
+                        {r.file_type}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                      {(r as unknown as { subjects?: { name?: string } }).subjects?.name && (
+                        <span className="badge badge-blue">
+                          {(r as unknown as { subjects?: { name?: string } }).subjects?.name}
+                        </span>
+                      )}
+                      {r.semester && (
+                        <span className="badge badge-gray">
+                          Sem {r.semester}
+                        </span>
+                      )}
+                      {r.unit_number && (
+                        <span className="badge badge-amber">
+                          Unit {r.unit_number}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                        {formatFileSize(r.file_size)} • {formatDate(r.created_at)}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      <button
+                        onClick={() => handleDownload(r.id)}
+                        className="btn btn-primary btn-sm"
+                        style={{ flex: 1, gap: 6 }}
+                      >
+                        <Download size={14} /> Download
+                      </button>
+                      {isAdmin && (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => handleMove(r.id, 'up')} className="btn btn-ghost btn-sm" style={{ padding: 6 }} disabled={idx === 0} title="Move up">
+                            <ChevronUp size={14} />
+                          </button>
+                          <button onClick={() => handleMove(r.id, 'down')} className="btn btn-ghost btn-sm" style={{ padding: 6 }} disabled={idx === items.length - 1} title="Move down">
+                            <ChevronDown size={14} />
+                          </button>
+                          <button onClick={() => setConfirmDelete(r.id)} className="btn btn-ghost btn-sm" style={{ padding: 6, color: 'var(--accent-red)' }} title="Delete">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )

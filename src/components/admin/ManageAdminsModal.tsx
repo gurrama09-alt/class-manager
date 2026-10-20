@@ -26,6 +26,8 @@ export default function ManageAdminsModal({ admins: initAdmins, departments, onC
   const [loading, setLoading] = useState(false)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
 
+  const [latestLink, setLatestLink] = useState<{ email: string; link: string } | null>(null)
+
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }))
 
@@ -33,16 +35,30 @@ export default function ManageAdminsModal({ admins: initAdmins, departments, onC
     if (!form.email.trim()) { showError('Email is required'); return }
     if (form.role === 'department_admin' && !form.department_id) { showError('Select a department for dept admin'); return }
     setLoading(true)
-    const res  = await fetch('/api/admin/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
-    const data = await res.json()
-    if (res.ok) {
-      setAdmins((prev) => [data.admin, ...prev])
-      setForm({ email: '', role: 'department_admin', department_id: '' })
-      success('Admin invited successfully!')
-    } else {
-      showError(data.error ?? 'Invite failed')
+    try {
+      const res  = await fetch('/api/admin/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (res.ok && data.admin) {
+        setAdmins((prev) => {
+          const exists = prev.some((a) => a.id === data.admin.id || a.email?.toLowerCase() === data.admin.email?.toLowerCase())
+          if (exists) {
+            return prev.map((a) => (a.id === data.admin.id || a.email?.toLowerCase() === data.admin.email?.toLowerCase()) ? data.admin : a)
+          }
+          return [data.admin, ...prev]
+        })
+        if (data.magicLink) {
+          setLatestLink({ email: form.email.trim(), link: data.magicLink })
+        }
+        setForm({ email: '', role: 'department_admin', department_id: '' })
+        success('Admin access granted! Invitation email sent.')
+      } else {
+        showError(data.error ?? 'Invite failed')
+      }
+    } catch {
+      showError('Network error while inviting administrator.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleDeactivate = async (id: string, currentStatus: string) => {
@@ -86,25 +102,44 @@ export default function ManageAdminsModal({ admins: initAdmins, departments, onC
           <div className="card" style={{ padding: 18, marginBottom: 20 }}>
             <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>Invite New Administrator</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              <input className="input" style={{ flex: 2, minWidth: 180 }} type="email" placeholder="admin@example.com" value={form.email} onChange={set('email')} />
-              <select className="input" style={{ flex: 1, minWidth: 140 }} value={form.role} onChange={set('role')}>
+              <input className="input" style={{ flex: '2 1 200px', minWidth: 160 }} type="email" placeholder="admin@example.com" value={form.email} onChange={set('email')} />
+              <select className="input" style={{ flex: '1 1 140px', minWidth: 140 }} value={form.role} onChange={set('role')}>
                 <option value="department_admin">Department Admin</option>
                 <option value="super_admin">Super Admin</option>
               </select>
               {form.role === 'department_admin' && (
-                <select className="input" style={{ flex: 1, minWidth: 140 }} value={form.department_id} onChange={set('department_id')}>
+                <select className="input" style={{ flex: '1 1 140px', minWidth: 140 }} value={form.department_id} onChange={set('department_id')}>
                   <option value="">Select Department</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               )}
-              <button className="btn btn-primary btn-sm" onClick={handleInvite} disabled={loading}>
+              <button className="btn btn-primary btn-sm" onClick={handleInvite} disabled={loading} style={{ minWidth: 120 }}>
                 {loading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <UserPlus size={14} />}
-                {loading ? 'Inviting…' : 'Add & Invite'}
+                {loading ? 'Granting…' : 'Add & Invite'}
               </button>
             </div>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
-              An invitation email will be sent. The admin will be activated upon sign-in.
+              An invitation email will be sent directly. The recipient will be granted admin access immediately.
             </p>
+
+            {latestLink && (
+              <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--accent-blue-dim)', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-primary)' }}>
+                  Access link generated for <strong>{latestLink.email}</strong>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(latestLink.link)
+                    success('Access link copied to clipboard!')
+                  }}
+                  style={{ padding: '4px 10px', fontSize: 12 }}
+                >
+                  Copy Direct Link
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Admin list */}
