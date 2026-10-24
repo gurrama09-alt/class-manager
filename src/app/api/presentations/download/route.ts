@@ -11,9 +11,13 @@ export async function GET(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const admin = createAdminClient()
-    const { data: presRaw } = await admin.from('presentations').select('storage_path, file_name').eq('id', id).single()
+    const { data: presRaw } = await admin.from('presentations').select('storage_path, file_name, department_id').eq('id', id).single()
     if (!presRaw) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    const pres = presRaw as { storage_path: string; file_name: string }
+    const pres = presRaw as { storage_path: string; file_name: string; department_id: string | null }
+
+    if (user.role === 'department_admin' && pres.department_id !== user.department_id) {
+      return NextResponse.json({ error: 'You can only download presentations for your own department.' }, { status: 403 })
+    }
 
     const { data: blob, error } = await admin.storage.from('presentations').download(pres.storage_path)
     if (error || !blob) return NextResponse.json({ error: 'Download failed' }, { status: 500 })

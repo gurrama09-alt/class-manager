@@ -382,7 +382,13 @@ CREATE POLICY "Authenticated can read resources" ON public.resources
   FOR SELECT USING (auth.role() = 'authenticated');
 DROP POLICY IF EXISTS "Admins can insert resources" ON public.resources;
 CREATE POLICY "Admins can insert resources" ON public.resources
-  FOR INSERT WITH CHECK (public.current_user_role() IN ('super_admin', 'department_admin'));
+  FOR INSERT WITH CHECK (
+    public.current_user_role() = 'super_admin'
+    OR (
+      public.current_user_role() = 'department_admin'
+      AND department_id = public.current_user_department()
+    )
+  );
 DROP POLICY IF EXISTS "Super admins can update resources" ON public.resources;
 CREATE POLICY "Super admins can update resources" ON public.resources
   FOR UPDATE USING (public.current_user_role() = 'super_admin');
@@ -411,14 +417,35 @@ DROP POLICY IF EXISTS "Students can view own presentations" ON public.presentati
 CREATE POLICY "Students can view own presentations" ON public.presentations
   FOR SELECT USING (submitted_by = auth.uid());
 DROP POLICY IF EXISTS "Admins can view all presentations" ON public.presentations;
-CREATE POLICY "Admins can view all presentations" ON public.presentations
-  FOR SELECT USING (public.current_user_role() IN ('super_admin', 'department_admin'));
+DROP POLICY IF EXISTS "Super admins can view all presentations" ON public.presentations;
+CREATE POLICY "Super admins can view all presentations" ON public.presentations
+  FOR SELECT USING (public.current_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Dept admins can view own dept presentations" ON public.presentations;
+CREATE POLICY "Dept admins can view own dept presentations" ON public.presentations
+  FOR SELECT USING (
+    public.current_user_role() = 'department_admin'
+    AND department_id = public.current_user_department()
+  );
 DROP POLICY IF EXISTS "Admins can delete presentations" ON public.presentations;
-CREATE POLICY "Admins can delete presentations" ON public.presentations
-  FOR DELETE USING (public.current_user_role() IN ('super_admin', 'department_admin'));
+DROP POLICY IF EXISTS "Super admins can delete presentations" ON public.presentations;
+CREATE POLICY "Super admins can delete presentations" ON public.presentations
+  FOR DELETE USING (public.current_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Dept admins can delete own dept presentations" ON public.presentations;
+CREATE POLICY "Dept admins can delete own dept presentations" ON public.presentations
+  FOR DELETE USING (
+    public.current_user_role() = 'department_admin'
+    AND department_id = public.current_user_department()
+  );
 DROP POLICY IF EXISTS "Admins can update presentations" ON public.presentations;
-CREATE POLICY "Admins can update presentations" ON public.presentations
-  FOR UPDATE USING (public.current_user_role() IN ('super_admin', 'department_admin'));
+DROP POLICY IF EXISTS "Super admins can update presentations" ON public.presentations;
+CREATE POLICY "Super admins can update presentations" ON public.presentations
+  FOR UPDATE USING (public.current_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Dept admins can update own dept presentations" ON public.presentations;
+CREATE POLICY "Dept admins can update own dept presentations" ON public.presentations
+  FOR UPDATE USING (
+    public.current_user_role() = 'department_admin'
+    AND department_id = public.current_user_department()
+  );
 
 -- admin_authorizations
 ALTER TABLE public.admin_authorizations ENABLE ROW LEVEL SECURITY;
@@ -432,8 +459,15 @@ CREATE POLICY "Admins can view own record" ON public.admin_authorizations
 -- audit_logs (insert by backend, read by admins, no delete)
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Admins can read audit_logs" ON public.audit_logs;
-CREATE POLICY "Admins can read audit_logs" ON public.audit_logs
-  FOR SELECT USING (public.current_user_role() IN ('super_admin', 'department_admin'));
+DROP POLICY IF EXISTS "Super admins can read audit_logs" ON public.audit_logs;
+CREATE POLICY "Super admins can read audit_logs" ON public.audit_logs
+  FOR SELECT USING (public.current_user_role() = 'super_admin');
+DROP POLICY IF EXISTS "Dept admins can read own dept audit_logs" ON public.audit_logs;
+CREATE POLICY "Dept admins can read own dept audit_logs" ON public.audit_logs
+  FOR SELECT USING (
+    public.current_user_role() = 'department_admin'
+    AND department_id = public.current_user_department()
+  );
 DROP POLICY IF EXISTS "Backend can insert audit_logs" ON public.audit_logs;
 CREATE POLICY "Backend can insert audit_logs" ON public.audit_logs
   FOR INSERT WITH CHECK (TRUE);

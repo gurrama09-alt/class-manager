@@ -7,7 +7,7 @@ import { AdminInviteSchema } from '@/lib/validators'
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireRole(['super_admin', 'department_admin'])
+    const user = await requireRole(['super_admin'])
     const body = await req.json()
 
     const parsed = AdminInviteSchema.safeParse(body)
@@ -141,6 +141,25 @@ export async function POST(req: NextRequest) {
       if (inviteRes.error) {
         console.warn('[Invite] Supabase invite warning:', inviteRes.error.message)
         // If they already exist in auth.users despite not in user_profiles
+        try {
+          const { data: listData } = await admin.auth.admin.listUsers()
+          const matched = listData?.users?.find((u) => u.email?.toLowerCase() === email)
+          if (matched) {
+            await admin.from('user_profiles').upsert({
+              id: matched.id,
+              email,
+              full_name: (matched.user_metadata?.full_name as string) || email.split('@')[0],
+              role,
+              department_id: department_id ?? null,
+              is_active: true,
+              updated_at: new Date().toISOString(),
+            })
+            await admin.auth.admin.updateUserById(matched.id, {
+              user_metadata: { role, department_id: department_id ?? null },
+            })
+          }
+        } catch {}
+
         try {
           const anonClient = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,

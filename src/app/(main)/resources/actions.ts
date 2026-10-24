@@ -156,14 +156,25 @@ export async function getResourceDownloadUrl(resourceId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Unauthorized' }
 
+  const { data: profileRaw } = await supabase
+    .from('user_profiles')
+    .select('role, department_id')
+    .eq('id', user.id)
+    .single()
+  const profile = profileRaw as { role?: string; department_id?: string | null } | null
+
   const { data: resourceRaw } = await supabase
     .from('resources')
-    .select('storage_path, file_name')
+    .select('storage_path, file_name, department_id')
     .eq('id', resourceId)
     .single()
 
   if (!resourceRaw) return { success: false, error: 'Resource not found.' }
-  const resource = resourceRaw as { storage_path: string; file_name: string }
+  const resource = resourceRaw as { storage_path: string; file_name: string; department_id: string | null }
+
+  if (profile?.role === 'department_admin' && resource.department_id !== profile.department_id) {
+    return { success: false, error: 'You can only access resources from your own department.' }
+  }
 
   const url = await createSignedDownloadUrl('resources', resource.storage_path, 60)
   return { success: true, url, filename: resource.file_name }
@@ -182,6 +193,10 @@ export async function updateResourceSequence(resourceId: string, direction: 'up'
 
   if (!resourceRaw) return { success: false, error: 'Resource not found.' }
   const resource = resourceRaw as { id: string; sequence_number: number; department_id: string; category: string }
+
+  if (user.role === 'department_admin' && user.department_id !== resource.department_id) {
+    return { success: false, error: 'You can only reorder resources in your own department.' }
+  }
 
   const targetSeq = direction === 'up' ? resource.sequence_number - 1 : resource.sequence_number + 1
 

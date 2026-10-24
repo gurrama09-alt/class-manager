@@ -2,11 +2,11 @@
 
 import React, { useState, useMemo, useTransition, useCallback } from 'react'
 import {
-  Search, Filter, Upload, Download, Trash2, Edit3,
+  Search, Filter, Upload, Download, Trash2,
   ChevronUp, ChevronDown, BookOpen, FlaskConical, FileText, GraduationCap,
-  X, Check, ExternalLink
+  X, Check
 } from 'lucide-react'
-import { formatFileSize, formatDate, categoryLabel } from '@/lib/utils'
+import { formatFileSize, formatDate } from '@/lib/utils'
 import { useToast } from '@/components/providers/ToastProvider'
 import { deleteResource, getResourceDownloadUrl, updateResourceSequence } from './actions'
 import UploadResourceModal from '@/components/resources/UploadResourceModal'
@@ -28,14 +28,17 @@ interface Props {
   subjects: { id: string; name: string; code: string; semester: number }[]
   settings: AcademicSettings | null
   userRole: string
+  userDepartmentId?: string | null
 }
 
-export default function ResourcesPageClient({ resources: initial, departments, subjects, settings, userRole }: Props) {
+export default function ResourcesPageClient({ resources: initial, departments, subjects, settings, userRole, userDepartmentId }: Props) {
   const { success, error: showError } = useToast()
+  const isDeptAdmin = userRole === 'department_admin'
+  const initialDept = isDeptAdmin ? (userDepartmentId || (departments.length === 1 ? departments[0]?.id : '')) : ''
   const [resources, setResources] = useState(initial)
   const [search, setSearch]       = useState('')
   const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all')
-  const [filterDept, setFilterDept] = useState('')
+  const [filterDept, setFilterDept] = useState(initialDept || '')
   const [filterSemester, setFilterSemester] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [showUpload, setShowUpload]   = useState(false)
@@ -172,16 +175,22 @@ export default function ResourcesPageClient({ resources: initial, departments, s
       {/* Filter panel */}
       {showFilters && (
         <div className="card" style={{ padding: 16, marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <select className="input" style={{ flex: '1 1 160px', minWidth: 140 }} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
-            <option value="">All Departments</option>
-            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          {isDeptAdmin ? (
+            <div style={{ flex: '1 1 160px', minWidth: 140, display: 'flex', alignItems: 'center', padding: '0 12px', background: 'var(--bg-muted)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+              {departments.find((d) => d.id === (userDepartmentId || filterDept))?.name || (departments[0]?.name ?? 'Assigned Department')}
+            </div>
+          ) : (
+            <select className="input" style={{ flex: '1 1 160px', minWidth: 140 }} value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+              <option value="">All Departments</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          )}
           <select className="input" style={{ flex: '1 1 140px', minWidth: 140 }} value={filterSemester} onChange={(e) => setFilterSemester(e.target.value)}>
             <option value="">All Semesters</option>
             {[1,2,3,4,5,6,7,8].map((s) => <option key={s} value={s}>Semester {s}</option>)}
           </select>
-          {(filterDept || filterSemester) && (
-            <button className="btn btn-ghost btn-sm" onClick={() => { setFilterDept(''); setFilterSemester('') }}>
+          {((!isDeptAdmin && filterDept) || filterSemester) && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { if (!isDeptAdmin) setFilterDept(''); setFilterSemester('') }}>
               <X size={13} /> Clear
             </button>
           )}
@@ -236,7 +245,7 @@ export default function ResourcesPageClient({ resources: initial, departments, s
                             <td>
                               <input type="checkbox" checked={selected.has(r.id)} onChange={(e) => {
                                 const next = new Set(selected)
-                                e.target.checked ? next.add(r.id) : next.delete(r.id)
+                                if (e.target.checked) next.add(r.id); else next.delete(r.id)
                                 setSelected(next)
                               }} />
                             </td>
@@ -293,7 +302,7 @@ export default function ResourcesPageClient({ resources: initial, departments, s
                           checked={selected.has(r.id)}
                           onChange={(e) => {
                             const next = new Set(selected)
-                            e.target.checked ? next.add(r.id) : next.delete(r.id)
+                            if (e.target.checked) next.add(r.id); else next.delete(r.id)
                             setSelected(next)
                           }}
                           style={{ marginTop: 4 }}

@@ -11,16 +11,34 @@ export default async function AuditLogPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('user_profiles').select('role').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('user_profiles').select('role, department_id').eq('id', user.id).single()
   if (!profile || (profile.role !== 'super_admin' && profile.role !== 'department_admin')) redirect('/unauthorized')
 
-  const { data: logs } = await supabase
+  const isSuperAdmin = profile.role === 'super_admin'
+  const deptId = profile.department_id
+
+  let logsQuery = supabase
     .from('audit_logs')
     .select('*, departments(name)')
     .order('created_at', { ascending: false })
     .limit(200)
 
-  const { data: departments } = await supabase.from('departments').select('id, name')
+  let deptsQuery = supabase.from('departments').select('id, name').eq('is_active', true)
+
+  if (!isSuperAdmin) {
+    if (deptId) {
+      logsQuery = logsQuery.eq('department_id', deptId)
+      deptsQuery = deptsQuery.eq('id', deptId)
+    } else {
+      logsQuery = logsQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+      deptsQuery = deptsQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+    }
+  }
+
+  const [{ data: logs }, { data: departments }] = await Promise.all([
+    logsQuery,
+    deptsQuery,
+  ])
 
   return <AuditLogClient logs={logs ?? []} departments={departments ?? []} />
 }

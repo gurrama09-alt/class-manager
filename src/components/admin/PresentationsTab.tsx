@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo } from 'react'
 import {
-  Users, AlertCircle, BarChart3, Download, Search, Filter,
-  Eye, Trash2, FileArchive, ChevronDown
+  Users, AlertCircle, BarChart3, Download, Search,
+  Eye, Trash2, FileArchive
 } from 'lucide-react'
 import { formatFileSize, formatDateTime } from '@/lib/utils'
 import { useToast } from '@/components/providers/ToastProvider'
@@ -20,7 +20,6 @@ interface Props {
 export default function PresentationsTab({ presentations, subjects, sections, settings }: Props) {
   const { success, error: showError } = useToast()
   const [search, setSearch]         = useState('')
-  const [filterSubject, setFilterSubject] = useState('')
   const [filterSection, setFilterSection] = useState('')
   const [viewSubject, setViewSubject]   = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)

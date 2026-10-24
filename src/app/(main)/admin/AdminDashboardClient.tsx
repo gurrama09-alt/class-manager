@@ -4,11 +4,10 @@ import React, { useState, useMemo } from 'react'
 import {
   LayoutDashboard, BookOpen, FileText, GraduationCap, FlaskConical,
   Building2, BookMarked, Clock, Download, Layers,
-  Upload, Settings, Users, ScrollText, MonitorPlay, BarChart3,
-  ChevronDown, ChevronUp, Search, Filter, Trash2, Eye, RefreshCcw,
-  Package, CheckCircle
+  Upload, Settings, Users, MonitorPlay,
+  Search, Trash2, Package
 } from 'lucide-react'
-import { formatFileSize, formatDate, formatDateTime, categoryLabel } from '@/lib/utils'
+import { formatFileSize, formatDate, categoryLabel } from '@/lib/utils'
 import { useToast } from '@/components/providers/ToastProvider'
 import { deleteResource, getResourceDownloadUrl } from '@/app/(main)/resources/actions'
 import UploadResourceModal from '@/components/resources/UploadResourceModal'
@@ -43,6 +42,7 @@ export default function AdminDashboardClient({
   const [recentSearch, setRecentSearch]  = useState('')
 
   const isSuperAdmin = profile.role === 'super_admin'
+  const assignedDept = (departments as { id: string; name: string; code?: string }[]).find((d) => d.id === profile.department_id) || (departments.length === 1 ? (departments[0] as { id: string; name: string; code?: string }) : null)
 
   // ── Dashboard Stats ────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -68,7 +68,9 @@ export default function AdminDashboardClient({
     { label: 'Lab Manuals',      value: stats.labManual,    icon: FlaskConical,  color: 'var(--accent-blue)',   bg: 'var(--accent-blue-dim)' },
     { label: 'Assignments',      value: stats.assignments,  icon: FileText,      color: 'var(--accent-purple)', bg: 'var(--accent-purple-dim)' },
     { label: 'Syllabus Files',   value: stats.syllabus,     icon: GraduationCap, color: 'var(--accent-amber)',  bg: 'var(--accent-amber-dim)' },
-    { label: 'Departments',      value: stats.departments,  icon: Building2,     color: 'var(--accent-purple)', bg: 'var(--accent-purple-dim)' },
+    isSuperAdmin
+      ? { label: 'Departments',  value: stats.departments,  icon: Building2,     color: 'var(--accent-purple)', bg: 'var(--accent-purple-dim)' }
+      : { label: 'Department',   value: assignedDept?.code ?? assignedDept?.name ?? 'Assigned', icon: Building2, color: 'var(--accent-purple)', bg: 'var(--accent-purple-dim)' },
     { label: 'Subjects',         value: stats.subjects,     icon: BookOpen,      color: 'var(--accent-green)',  bg: 'var(--accent-green-dim)' },
     { label: 'Sections',         value: stats.sections,     icon: Layers,        color: 'var(--accent-blue)',   bg: 'var(--accent-blue-dim)' },
     { label: 'Recent Uploads',   value: stats.recentUploads,icon: Clock,         color: 'var(--accent-amber)',  bg: 'var(--accent-amber-dim)' },
@@ -116,9 +118,13 @@ export default function AdminDashboardClient({
               <LayoutDashboard size={22} color="var(--accent-purple)" />
               <h1 className="page-title" style={{ margin: 0 }}>Admin Dashboard</h1>
             </div>
-            <p className="page-subtitle">Manage departments, resources, and administrator access.</p>
+            <p className="page-subtitle">
+              {isSuperAdmin
+                ? 'Manage all departments, resources, structure, and administrator access.'
+                : `Manage ${assignedDept?.name ?? 'department'} resources, structure, and presentations.`}
+            </p>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '3px 10px', borderRadius: 99, background: 'var(--accent-purple-dim)', color: 'var(--accent-purple)', fontSize: 12 }}>
-              {profile.role === 'super_admin' ? 'Super Admin' : 'Department Admin'} — {profile.email}
+              {isSuperAdmin ? 'Super Admin (All Departments)' : `Department Admin — ${assignedDept?.name ?? 'Assigned Department'}`} — {profile.email}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -262,6 +268,8 @@ export default function AdminDashboardClient({
           departments={departments}
           sections={sections}
           subjects={subjects}
+          userRole={profile.role}
+          userDepartmentId={profile.department_id}
           onClose={() => setShowStructure(false)}
         />
       )}

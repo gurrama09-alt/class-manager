@@ -11,12 +11,24 @@ export async function GET(req: NextRequest) {
     const subjectId    = req.nextUrl.searchParams.get('subject_id')
 
     const admin = createAdminClient()
+
+    if (user.role === 'department_admin' && subjectId) {
+      const { data: sub } = await admin.from('subjects').select('department_id').eq('id', subjectId).single()
+      if (!sub || sub.department_id !== user.department_id) {
+        return NextResponse.json({ error: 'You can only export presentations for your own department.' }, { status: 403 })
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query: any = admin
       .from('presentations')
       .select('*, subjects(id, name, code)')
       .eq('is_latest', true)
       .eq('academic_year', academicYear)
+
+    if (user.role === 'department_admin') {
+      query = query.eq('department_id', user.department_id)
+    }
 
     if (subjectId) query = query.eq('subject_id', subjectId)
 

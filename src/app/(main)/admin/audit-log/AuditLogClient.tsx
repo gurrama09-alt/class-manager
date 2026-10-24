@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { Search, Filter, ScrollText, X } from 'lucide-react'
+import { Search, ScrollText, X } from 'lucide-react'
 import { formatDateTime, actionLabel } from '@/lib/utils'
 import type { AuditLog } from '@/types/database'
 

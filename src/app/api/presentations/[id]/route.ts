@@ -15,6 +15,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (!presRaw) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const pres = presRaw as { storage_path: string; file_name: string; department_id: string | null }
 
+    if (user.role === 'department_admin' && pres.department_id !== user.department_id) {
+      return NextResponse.json({ error: 'You can only delete presentations for your own department.' }, { status: 403 })
+    }
+
     await admin.from('presentations').delete().eq('id', id)
     await deleteStorageFile('presentations', pres.storage_path)
 

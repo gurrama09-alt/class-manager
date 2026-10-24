@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireRole } from '@/lib/auth'
+import { requireRole, getCurrentUser } from '@/lib/auth'
 import { writeAuditLog } from '@/lib/audit'
 
 
@@ -25,8 +25,13 @@ export async function POST(req: NextRequest) {
 
 export async function GET() {
   try {
+    const user = await getCurrentUser()
     const admin = createAdminClient()
-    const { data, error } = await admin.from('departments').select('*').order('name')
+    let query = admin.from('departments').select('*').order('name')
+    if (user?.role === 'department_admin' && user.department_id) {
+      query = query.eq('id', user.department_id)
+    }
+    const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json(data)
   } catch {

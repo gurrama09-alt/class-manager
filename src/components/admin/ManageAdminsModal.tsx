@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { X, Plus, UserPlus, Shield, ShieldOff, Trash2, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { X, UserPlus, Shield, ShieldOff, Trash2, CheckCircle, Clock, XCircle } from 'lucide-react'
 import { useToast } from '@/components/providers/ToastProvider'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import type { AdminAuthorization } from '@/types/database'
@@ -156,7 +156,9 @@ export default function ManageAdminsModal({ admins: initAdmins, departments, onC
                 <div style={{ flex: 1, minWidth: 160 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{a.email}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {a.role === 'super_admin' ? 'Super Admin' : `Dept Admin${a.department_id ? ` — ${(a as unknown as { departments?: { name: string } | null }).departments?.name}` : ''}`}
+                    {a.role === 'super_admin'
+                      ? 'Super Admin (All Departments)'
+                      : `Dept Admin — ${(a as unknown as { departments?: { name: string } | null }).departments?.name || departments.find((d) => d.id === a.department_id)?.name || 'Assigned Department'}`}
                   </div>
                 </div>
                 {statusBadge(a.status)}

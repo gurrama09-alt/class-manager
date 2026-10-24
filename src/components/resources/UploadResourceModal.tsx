@@ -29,10 +29,12 @@ export default function UploadResourceModal({ departments, subjects, settings, o
   const [file, setFile] = useState<File | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  const initialDeptId = departments.length === 1 ? departments[0]?.id : ''
+
   const [form, setForm] = useState({
     title: '',
     category: 'question_bank',
-    department_id: '',
+    department_id: initialDeptId,
     section_id: '',
     subject_id: '',
     semester: '',
@@ -189,10 +191,16 @@ export default function UploadResourceModal({ departments, subjects, settings, o
             {/* Department */}
             <div style={fieldStyle}>
               <label className="label">Department *</label>
-              <select className="input" value={form.department_id} onChange={set('department_id')}>
-                <option value="">Select department</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
+              {departments.length === 1 ? (
+                <div style={{ padding: '8px 12px', background: 'var(--bg-muted)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {departments[0]?.name}
+                </div>
+              ) : (
+                <select className="input" value={form.department_id} onChange={set('department_id')}>
+                  <option value="">Select department</option>
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              )}
               {fieldErrors.department_id && <p style={{ color: 'var(--accent-red)', fontSize: 12 }}>{fieldErrors.department_id}</p>}
             </div>
 

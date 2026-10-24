@@ -13,25 +13,38 @@ interface Props {
   departments: unknown[]
   sections: unknown[]
   subjects: unknown[]
+  userRole?: string
+  userDepartmentId?: string | null
   onClose: () => void
 }
 
 type Tab = 'departments' | 'sections' | 'subjects'
 
-export default function ManageStructureModal({ departments: initDepts, sections: initSecs, subjects: initSubs, onClose }: Props) {
+export default function ManageStructureModal({
+  departments: initDepts,
+  sections: initSecs,
+  subjects: initSubs,
+  userRole,
+  userDepartmentId,
+  onClose
+}: Props) {
   const { success, error: showError } = useToast()
-  const [tab, setTab]         = useState<Tab>('departments')
+  const isDeptAdmin = userRole === 'department_admin'
+  const [tab, setTab]                 = useState<Tab>(isDeptAdmin ? 'sections' : 'departments')
   const [departments, setDepartments] = useState<Department[]>(initDepts as Department[])
   const [sections,    setSections]    = useState<Section[]>(initSecs as Section[])
   const [subjects,    setSubjects]    = useState<Subject[]>(initSubs as Subject[])
   const [loading,     setLoading]     = useState(false)
   const [confirmDel,  setConfirmDel]  = useState<{ type: Tab; id: string } | null>(null)
 
+  const defaultDeptId = userDepartmentId || (departments.length === 1 ? departments[0]?.id : '')
+
   // ── Departments ─────────────────────────────────────────────────────────────
   const [deptForm, setDeptForm] = useState({ name: '', code: '' })
   const [editDept, setEditDept] = useState<string | null>(null)
 
   const saveDept = async () => {
+    if (isDeptAdmin) return
     if (!deptForm.name.trim() || !deptForm.code.trim()) return
     setLoading(true)
     const method = editDept ? 'PATCH' : 'POST'
@@ -55,25 +68,30 @@ export default function ManageStructureModal({ departments: initDepts, sections:
   }
 
   // ── Sections ────────────────────────────────────────────────────────────────
-  const [secForm, setSecForm] = useState({ department_id: '', name: '', code: '' })
+  const [secForm, setSecForm] = useState({ department_id: defaultDeptId, name: '', code: '' })
   const [editSec, setEditSec] = useState<string | null>(null)
 
   const saveSec = async () => {
-    if (!secForm.department_id || !secForm.name.trim()) return
+    const deptId = isDeptAdmin ? defaultDeptId : secForm.department_id
+    if (!deptId || !secForm.name.trim()) {
+      showError('Department and section name required')
+      return
+    }
     setLoading(true)
     const method = editSec ? 'PATCH' : 'POST'
     const url    = editSec ? `/api/admin/sections/${editSec}` : '/api/admin/sections'
-    const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(secForm) })
+    const payload = { ...secForm, department_id: deptId }
+    const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     const data   = await res.json()
     if (res.ok) {
       if (editSec) {
-        setSections((prev) => prev.map((s) => s.id === editSec ? { ...s, ...secForm } : s))
+        setSections((prev) => prev.map((s) => s.id === editSec ? { ...s, ...payload } : s))
         success('Section updated.')
       } else {
         setSections((prev) => [...prev, data.section])
         success('Section added.')
       }
-      setSecForm({ department_id: '', name: '', code: '' })
+      setSecForm({ department_id: defaultDeptId, name: '', code: '' })
       setEditSec(null)
     } else {
       showError(data.error ?? 'Operation failed')
@@ -82,25 +100,30 @@ export default function ManageStructureModal({ departments: initDepts, sections:
   }
 
   // ── Subjects ────────────────────────────────────────────────────────────────
-  const [subForm, setSubForm] = useState({ department_id: '', name: '', code: '', semester: '1', is_active: true })
+  const [subForm, setSubForm] = useState({ department_id: defaultDeptId, name: '', code: '', semester: '1', is_active: true })
   const [editSub, setEditSub] = useState<string | null>(null)
 
   const saveSub = async () => {
-    if (!subForm.department_id || !subForm.name.trim() || !subForm.code.trim()) return
+    const deptId = isDeptAdmin ? defaultDeptId : subForm.department_id
+    if (!deptId || !subForm.name.trim() || !subForm.code.trim()) {
+      showError('Department, subject name, and code required')
+      return
+    }
     setLoading(true)
     const method = editSub ? 'PATCH' : 'POST'
     const url    = editSub ? `/api/admin/subjects/${editSub}` : '/api/admin/subjects'
-    const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...subForm, semester: parseInt(subForm.semester) }) })
+    const payload = { ...subForm, department_id: deptId, semester: parseInt(subForm.semester) }
+    const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     const data   = await res.json()
     if (res.ok) {
       if (editSub) {
-        setSubjects((prev) => prev.map((s) => s.id === editSub ? { ...s, ...subForm, semester: parseInt(subForm.semester) } : s))
+        setSubjects((prev) => prev.map((s) => s.id === editSub ? { ...s, ...payload } : s))
         success('Subject updated.')
       } else {
         setSubjects((prev) => [...prev, data.subject])
         success('Subject added.')
       }
-      setSubForm({ department_id: '', name: '', code: '', semester: '1', is_active: true })
+      setSubForm({ department_id: defaultDeptId, name: '', code: '', semester: '1', is_active: true })
       setEditSub(null)
     } else {
       showError(data.error ?? 'Operation failed')
@@ -154,18 +177,18 @@ export default function ManageStructureModal({ departments: initDepts, sections:
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 4, background: 'var(--bg-muted)', borderRadius: 10, padding: 4, marginBottom: 20 }}>
             {([
-              { key: 'departments', label: 'Departments', icon: Building2 },
-              { key: 'sections',    label: 'Sections',    icon: Layers },
-              { key: 'subjects',    label: 'Subjects',    icon: BookOpen },
-            ] as const).map(({ key, label, icon: Icon }) => (
+              ...(!isDeptAdmin ? [{ key: 'departments' as const, label: 'Departments', icon: Building2 }] : []),
+              { key: 'sections' as const,    label: 'Sections',    icon: Layers },
+              { key: 'subjects' as const,    label: 'Subjects',    icon: BookOpen },
+            ]).map(({ key, label, icon: Icon }) => (
               <button key={key} style={tabStyle(key)} onClick={() => setTab(key)}>
                 <Icon size={13} style={{ display: 'inline', marginRight: 5 }} />{label}
               </button>
             ))}
           </div>
 
-          {/* DEPARTMENTS */}
-          {tab === 'departments' && (
+          {/* DEPARTMENTS (Super Admin Only) */}
+          {tab === 'departments' && !isDeptAdmin && (
             <div>
               <div style={inputRow}>
                 <input className="input" style={{ flex: 2 }} placeholder="Department Name" value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} />
@@ -194,16 +217,22 @@ export default function ManageStructureModal({ departments: initDepts, sections:
           {tab === 'sections' && (
             <div>
               <div style={inputRow}>
-                <select className="input" style={{ flex: 1 }} value={secForm.department_id} onChange={(e) => setSecForm({ ...secForm, department_id: e.target.value })}>
-                  <option value="">Department</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
+                {isDeptAdmin ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 12px', background: 'var(--bg-muted)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)', minHeight: 38 }}>
+                    {departments.find((d) => d.id === defaultDeptId)?.name || 'Assigned Department'}
+                  </div>
+                ) : (
+                  <select className="input" style={{ flex: 1 }} value={secForm.department_id} onChange={(e) => setSecForm({ ...secForm, department_id: e.target.value })}>
+                    <option value="">Department</option>
+                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                )}
                 <input className="input" style={{ flex: 1 }} placeholder="Section Name (e.g. A)" value={secForm.name} onChange={(e) => setSecForm({ ...secForm, name: e.target.value })} />
                 <input className="input" style={{ flex: 0, width: 80 }} placeholder="Code" value={secForm.code} onChange={(e) => setSecForm({ ...secForm, code: e.target.value })} />
                 <button className="btn btn-primary btn-sm" onClick={saveSec} disabled={loading}>
                   {editSec ? <><Check size={13} /> Update</> : <><Plus size={13} /> Add</>}
                 </button>
-                {editSec && <button className="btn btn-ghost btn-sm" onClick={() => { setEditSec(null); setSecForm({ department_id: '', name: '', code: '' }) }}>Cancel</button>}
+                {editSec && <button className="btn btn-ghost btn-sm" onClick={() => { setEditSec(null); setSecForm({ department_id: defaultDeptId, name: '', code: '' }) }}>Cancel</button>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {sections.map((s) => (
@@ -224,10 +253,16 @@ export default function ManageStructureModal({ departments: initDepts, sections:
           {tab === 'subjects' && (
             <div>
               <div style={inputRow}>
-                <select className="input" style={{ flex: 1 }} value={subForm.department_id} onChange={(e) => setSubForm({ ...subForm, department_id: e.target.value })}>
-                  <option value="">Department</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
+                {isDeptAdmin ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '0 12px', background: 'var(--bg-muted)', borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)', minHeight: 38 }}>
+                    {departments.find((d) => d.id === defaultDeptId)?.name || 'Assigned Department'}
+                  </div>
+                ) : (
+                  <select className="input" style={{ flex: 1 }} value={subForm.department_id} onChange={(e) => setSubForm({ ...subForm, department_id: e.target.value })}>
+                    <option value="">Department</option>
+                    {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  </select>
+                )}
                 <input className="input" style={{ flex: 1 }} placeholder="Subject Name" value={subForm.name} onChange={(e) => setSubForm({ ...subForm, name: e.target.value })} />
                 <input className="input" style={{ flex: 0, width: 90 }} placeholder="Code" value={subForm.code} onChange={(e) => setSubForm({ ...subForm, code: e.target.value.toUpperCase() })} />
                 <select className="input" style={{ flex: 0, width: 100 }} value={subForm.semester} onChange={(e) => setSubForm({ ...subForm, semester: e.target.value })}>
@@ -236,7 +271,7 @@ export default function ManageStructureModal({ departments: initDepts, sections:
                 <button className="btn btn-primary btn-sm" onClick={saveSub} disabled={loading}>
                   {editSub ? <><Check size={13} /> Update</> : <><Plus size={13} /> Add</>}
                 </button>
-                {editSub && <button className="btn btn-ghost btn-sm" onClick={() => { setEditSub(null); setSubForm({ department_id: '', name: '', code: '', semester: '1', is_active: true }) }}>Cancel</button>}
+                {editSub && <button className="btn btn-ghost btn-sm" onClick={() => { setEditSub(null); setSubForm({ department_id: defaultDeptId, name: '', code: '', semester: '1', is_active: true }) }}>Cancel</button>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {subjects.map((s) => (
