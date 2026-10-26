@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { GraduationCap, Presentation, BookOpen, Shield } from 'lucide-react'
 import AboutSpotlight from '@/components/about/AboutSpotlight'
 import { getSpotlightData } from '@/lib/spotlight'
-import { isAdmin } from '@/lib/auth'
+import { isSuperAdmin } from '@/lib/auth'
 
 export const metadata: Metadata = { title: 'About' }
 export const dynamic = 'force-dynamic'
@@ -33,12 +33,12 @@ const features = [
 
 export default async function AboutPage() {
   const spotlight = await getSpotlightData()
-  const admin = await isAdmin()
+  const canEdit = await isSuperAdmin()
 
   return (
     <div className="container" style={{ maxWidth: 860, margin: '0 auto', paddingTop: 28 }}>
-      {/* Box at top of About section: Photo upload & description */}
-      <AboutSpotlight initialData={spotlight} isAdmin={admin} />
+      {/* Box at top of About section: Photo and description (only super admin can edit) */}
+      <AboutSpotlight initialData={spotlight} canEdit={canEdit} />
 
       {/* Hero */}
       <div style={{ textAlign: 'center', padding: '24px 0 40px' }}>

@@ -19,16 +19,16 @@ import type { AboutSpotlightData } from '@/lib/spotlight'
 
 interface Props {
   initialData: AboutSpotlightData
-  isAdmin?: boolean
+  canEdit?: boolean
 }
 
-export default function AboutSpotlight({ initialData, isAdmin = true }: Props) {
+export default function AboutSpotlight({ initialData, canEdit = false }: Props) {
   const { success, error: showError } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [data, setData] = useState<AboutSpotlightData>(initialData)
-  // If there's neither photo nor description, open in edit mode by default for quick setup
-  const [isEditing, setIsEditing] = useState<boolean>(!initialData.imageUrl && !initialData.description)
+  // Only super admin can edit
+  const [isEditing, setIsEditing] = useState<boolean>(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialData.imageUrl)
   const [description, setDescription] = useState<string>(initialData.description || '')
@@ -248,62 +248,64 @@ export default function AboutSpotlight({ initialData, isAdmin = true }: Props) {
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {!isEditing ? (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: 13,
-                padding: '6px 14px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-              title="Edit photo and description"
-            >
-              <Pencil size={14} />
-              {hasContent ? 'Edit Spotlight' : 'Add Photo & Description'}
-            </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {/* Action Controls - Super Admin only */}
+        {canEdit && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {!isEditing ? (
               <button
-                onClick={handleCancel}
-                disabled={isSaving}
-                className="btn btn-ghost btn-sm"
-                style={{ fontSize: 13, padding: '6px 12px' }}
-              >
-                <X size={14} /> Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="btn btn-primary btn-sm"
+                onClick={() => setIsEditing(true)}
+                className="btn btn-secondary btn-sm"
                 style={{
                   fontSize: 13,
-                  padding: '6px 16px',
+                  padding: '6px 14px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: 'var(--gradient-brand)',
-                  color: 'white',
-                  border: 'none',
                 }}
+                title="Edit photo and description (Super Admin only)"
               >
-                {isSaving ? (
-                  <>
-                    <Loader2 size={14} className="spin" /> Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check size={14} /> Save Changes
-                  </>
-                )}
+                <Pencil size={14} />
+                {hasContent ? 'Edit Spotlight' : 'Add Photo & Description'}
               </button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: 13, padding: '6px 12px' }}
+                >
+                  <X size={14} /> Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="btn btn-primary btn-sm"
+                  style={{
+                    fontSize: 13,
+                    padding: '6px 16px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'var(--gradient-brand)',
+                    color: 'white',
+                    border: 'none',
+                  }}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 size={14} className="spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} /> Save Changes
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Hidden File Input */}
@@ -488,7 +490,7 @@ export default function AboutSpotlight({ initialData, isAdmin = true }: Props) {
                 <ImageIcon size={24} color="var(--text-muted)" />
               </div>
               <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0 }}>
-                No photo uploaded yet. Click <strong>Edit Spotlight</strong> to upload one.
+                No photo uploaded yet.{canEdit ? ' Click Edit Spotlight to upload one.' : ''}
               </p>
             </div>
           )
@@ -597,7 +599,7 @@ export default function AboutSpotlight({ initialData, isAdmin = true }: Props) {
                 fontStyle: description ? 'normal' : 'italic',
               }}
             >
-              {description || 'No description added yet. Click "Edit Spotlight" above to add one.'}
+              {description || (canEdit ? 'No description added yet. Click "Edit Spotlight" above to add one.' : 'No description added yet.')}
             </div>
 
             {data.updatedAt && (

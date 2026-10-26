@@ -19,11 +19,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
-    const isDev = process.env.NODE_ENV === 'development'
-    const isAdmin = user?.role === 'super_admin' || user?.role === 'department_admin'
-
-    if (!isAdmin && !isDev) {
-      return NextResponse.json({ error: 'Unauthorized: Admin access required to update spotlight.' }, { status: 403 })
+    if (user?.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Unauthorized: Only Super Admins can edit the spotlight.' }, { status: 403 })
     }
 
     const formData = await req.formData()
@@ -86,7 +83,7 @@ export async function POST(req: NextRequest) {
       imageUrl,
       description: description.trim(),
       updatedAt: new Date().toISOString(),
-      updatedBy: user?.email ?? (isDev ? 'admin-dev' : 'admin'),
+      updatedBy: user.email,
     }
 
     const { error: saveError } = await admin.storage
