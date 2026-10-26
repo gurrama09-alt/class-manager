@@ -1,7 +1,11 @@
 import type { Metadata } from 'next'
 import { GraduationCap, Presentation, BookOpen, Shield } from 'lucide-react'
+import AboutSpotlight from '@/components/about/AboutSpotlight'
+import { getSpotlightData } from '@/lib/spotlight'
+import { isAdmin } from '@/lib/auth'
 
 export const metadata: Metadata = { title: 'About' }
+export const dynamic = 'force-dynamic'
 
 const features = [
   {
@@ -27,11 +31,17 @@ const features = [
   },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const spotlight = await getSpotlightData()
+  const admin = await isAdmin()
+
   return (
-    <div className="container" style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div className="container" style={{ maxWidth: 860, margin: '0 auto', paddingTop: 28 }}>
+      {/* Box at top of About section: Photo upload & description */}
+      <AboutSpotlight initialData={spotlight} isAdmin={admin} />
+
       {/* Hero */}
-      <div style={{ textAlign: 'center', padding: '48px 0 40px' }}>
+      <div style={{ textAlign: 'center', padding: '24px 0 40px' }}>
         <div style={{ width: 72, height: 72, borderRadius: 18, background: 'var(--gradient-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
           <GraduationCap size={36} color="white" />
         </div>
