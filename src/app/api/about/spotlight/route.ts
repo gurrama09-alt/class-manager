@@ -26,7 +26,21 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData()
     const description = (formData.get('description') as string | null) ?? ''
     const removeImage = formData.get('removeImage') === 'true'
-    const file = formData.get('file') as File | null
+    const existingImagesRaw = formData.get('existingImages') as string | null
+    const photoManifestRaw = formData.get('photoManifest') as string | null
+
+    // Collect all uploaded files
+    const incomingFiles: File[] = []
+    const allFiles = formData.getAll('files')
+    for (const item of allFiles) {
+      if (item instanceof File && item.size > 0) {
+        incomingFiles.push(item)
+      }
+    }
+    const singleFile = formData.get('file')
+    if (incomingFiles.length === 0 && singleFile instanceof File && singleFile.size > 0) {
+      incomingFiles.push(singleFile)
+    }
 
     const admin = createAdminClient()
 
@@ -39,24 +53,33 @@ export async function POST(req: NextRequest) {
 
     // Get current spotlight data
     const current = await getSpotlightData()
-    let imageUrl = current.imageUrl
+    const currentImages = current.images && current.images.length > 0
+      ? current.images
+      : (current.imageUrl ? [current.imageUrl] : [])
 
-    if (removeImage) {
-      imageUrl = null
+    // Validate incoming files
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+    for (const file of incomingFiles) {
+      if (!allowedMimes.includes(file.type)) {
+        return NextResponse.json(
+          { error: `File "${file.name}" has an invalid type. Only JPEG, PNG, WebP, GIF, SVG are allowed.` },
+          { status: 400 }
+        )
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: `File "${file.name}" exceeds the 10 MB size limit.` },
+          { status: 400 }
+        )
+      }
     }
 
-    if (file && file.size > 0) {
-      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
-      if (!allowedMimes.includes(file.type)) {
-        return NextResponse.json({ error: 'Only image files (JPEG, PNG, WebP, GIF, SVG) are allowed.' }, { status: 400 })
-      }
-
-      if (file.size > 10 * 1024 * 1024) {
-        return NextResponse.json({ error: 'Image exceeds the 10 MB size limit.' }, { status: 400 })
-      }
-
+    // Upload newly provided files
+    const uploadedUrls: string[] = []
+    for (let i = 0; i < incomingFiles.length; i++) {
+      const file = incomingFiles[i]
       const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const fileName = `spotlight-${Date.now()}.${ext}`
+      const fileName = `spotlight-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}.${ext}`
       const arrayBuffer = await file.arrayBuffer()
       const buffer = Buffer.from(arrayBuffer)
 
@@ -76,11 +99,47 @@ export async function POST(req: NextRequest) {
         .from('about-spotlight')
         .getPublicUrl(fileName)
 
-      imageUrl = pubUrlData.publicUrl
+      uploadedUrls.push(pubUrlData.publicUrl)
+    }
+
+    // Build the final list of images
+    let finalImages: string[] = []
+
+    if (photoManifestRaw) {
+      try {
+        const manifest = JSON.parse(photoManifestRaw) as Array<
+          | { type: 'existing'; url: string }
+          | { type: 'new'; fileIndex: number }
+        >
+        for (const item of manifest) {
+          if (item.type === 'existing' && typeof item.url === 'string') {
+            finalImages.push(item.url)
+          } else if (item.type === 'new' && typeof item.fileIndex === 'number' && uploadedUrls[item.fileIndex]) {
+            finalImages.push(uploadedUrls[item.fileIndex])
+          }
+        }
+      } catch (e) {
+        console.warn('[Spotlight] Failed to parse photoManifest:', e)
+      }
+    } else if (existingImagesRaw !== null) {
+      try {
+        const parsed = JSON.parse(existingImagesRaw)
+        if (Array.isArray(parsed)) {
+          finalImages = parsed.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+        }
+      } catch {
+        finalImages = []
+      }
+      finalImages.push(...uploadedUrls)
+    } else if (removeImage) {
+      finalImages = [...uploadedUrls]
+    } else {
+      finalImages = [...currentImages, ...uploadedUrls]
     }
 
     const updatedData: AboutSpotlightData = {
-      imageUrl,
+      imageUrl: finalImages[0] ?? null,
+      images: finalImages,
       description: description.trim(),
       updatedAt: new Date().toISOString(),
       updatedBy: user.email,
@@ -103,7 +162,7 @@ export async function POST(req: NextRequest) {
         action: 'settings_update',
         actor_id: user.id,
         actor_email: user.email,
-        description: 'Updated About Spotlight photo and description',
+        description: `Updated About Spotlight (${finalImages.length} photo${finalImages.length === 1 ? '' : 's'}) and description`,
       })
     }
 
