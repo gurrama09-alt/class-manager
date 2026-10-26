@@ -30,6 +30,7 @@ interface Props {
 interface PhotoItem {
   id: string
   url: string
+  description: string
   file?: File
   isNew?: boolean
 }
@@ -41,9 +42,12 @@ function getInitialPhotos(itemData: AboutSpotlightData): PhotoItem[] {
     ? [itemData.imageUrl]
     : []
 
+  const descriptions = itemData.descriptions ?? []
+
   return images.map((url, idx) => ({
     id: `existing-${idx}-${url}`,
     url,
+    description: descriptions[idx] ?? '',
     isNew: false,
   }))
 }
@@ -57,7 +61,8 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
   const [data, setData] = useState<AboutSpotlightData>(initialData)
   const [isEditing, setIsEditing] = useState<boolean>(false)
   const [photos, setPhotos] = useState<PhotoItem[]>(() => getInitialPhotos(initialData))
-  const [description, setDescription] = useState<string>(initialData.description || '')
+  // Legacy single description kept for backward compat display
+  const [description] = useState<string>(initialData.description || '')
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [isDragging, setIsDragging] = useState<boolean>(false)
 
@@ -70,7 +75,7 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
     setPrevInitialData(initialData)
     setData(initialData)
     setPhotos(getInitialPhotos(initialData))
-    setDescription(initialData.description || '')
+    // description is derived from photos now
     setActiveViewIndex(0)
   }
 
@@ -106,6 +111,7 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
       newItems.push({
         id: `new-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`,
         url: objectUrl,
+        description: '',
         file,
         isNew: true,
       })
@@ -148,6 +154,7 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
       next[idx] = {
         id: `replaced-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         url: objectUrl,
+        description: next[idx]?.description ?? '',
         file,
         isNew: true,
       }
@@ -207,7 +214,6 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
   // Cancel edits
   const handleCancel = () => {
     setPhotos(getInitialPhotos(data))
-    setDescription(data.description || '')
     setIsEditing(false)
     if (addFileInputRef.current) addFileInputRef.current.value = ''
     if (replaceFileInputRef.current) replaceFileInputRef.current.value = ''
@@ -220,17 +226,20 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
       const formData = new FormData()
       formData.append('description', description)
 
-      // Build manifest and gather new files
-      const manifest: Array<{ type: 'existing'; url: string } | { type: 'new'; fileIndex: number }> = []
+      // Build manifest with per-photo descriptions and gather new files
+      const manifest: Array<
+        | { type: 'existing'; url: string; description: string }
+        | { type: 'new'; fileIndex: number; description: string }
+      > = []
       let newFileCount = 0
 
       for (const item of photos) {
         if (item.file) {
-          manifest.push({ type: 'new', fileIndex: newFileCount })
+          manifest.push({ type: 'new', fileIndex: newFileCount, description: item.description })
           formData.append('files', item.file)
           newFileCount++
         } else {
-          manifest.push({ type: 'existing', url: item.url })
+          manifest.push({ type: 'existing', url: item.url, description: item.description })
         }
       }
 
@@ -248,7 +257,6 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
 
       setData(result.data)
       setPhotos(getInitialPhotos(result.data))
-      setDescription(result.data.description || '')
       setActiveViewIndex(0)
       setIsEditing(false)
       success('Spotlight updated successfully!')
@@ -675,6 +683,49 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
                           </button>
                         </div>
                       </div>
+
+                      {/* Per-Photo Description */}
+                      <div
+                        style={{
+                          padding: '10px 12px',
+                          borderTop: '1px solid var(--border)',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                        }}
+                      >
+                        <label
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: 'var(--text-muted)',
+                            marginBottom: 4,
+                            display: 'block',
+                          }}
+                        >
+                          Description for Photo {idx + 1}
+                        </label>
+                        <textarea
+                          className="input"
+                          rows={2}
+                          value={item.description}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setPhotos((prev) => {
+                              const next = [...prev]
+                              next[idx] = { ...next[idx], description: val }
+                              return next
+                            })
+                          }}
+                          placeholder={idx === 0 ? 'Add a description for the cover photo...' : `Describe photo ${idx + 1}...`}
+                          style={{
+                            resize: 'vertical',
+                            minHeight: 52,
+                            lineHeight: 1.5,
+                            fontSize: 12,
+                            fontFamily: 'inherit',
+                            padding: '6px 10px',
+                          }}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1055,136 +1106,124 @@ export default function AboutSpotlight({ initialData, canEdit = false }: Props) 
       {/* ── DESCRIPTION FIELD BELOW PHOTO ── */}
       <div>
         {isEditing ? (
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 8,
-              }}
-            >
-              <label
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                Description (visible below the photos)
-              </label>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {description.length} characters
-              </span>
-            </div>
-            <textarea
-              className="input"
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Add a detailed description, announcement, or explanation for this spotlight..."
-              style={{
-                resize: 'vertical',
-                minHeight: 100,
-                lineHeight: 1.6,
-                fontSize: 14,
-                fontFamily: 'inherit',
-              }}
-            />
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 8,
-                marginTop: 14,
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleCancel}
-                disabled={isSaving}
-                className="btn btn-secondary btn-sm"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="btn btn-primary btn-sm"
-                style={{
-                  background: 'var(--gradient-brand)',
-                  color: 'white',
-                  border: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 size={14} className="spin" /> Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check size={14} /> Save Spotlight
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        ) : (
+          /* Edit mode: per-photo descriptions are already on each card above.
+             Show only the bottom save/cancel controls here. */
           <div
             style={{
-              padding: '16px 20px',
-              borderRadius: 12,
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+              marginTop: 14,
             }}
           >
-            <div
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="btn btn-secondary btn-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="btn btn-primary btn-sm"
               style={{
-                fontSize: 15,
-                color: description ? 'var(--text-primary)' : 'var(--text-muted)',
-                lineHeight: 1.7,
-                whiteSpace: 'pre-wrap',
-                fontStyle: description ? 'normal' : 'italic',
+                background: 'var(--gradient-brand)',
+                color: 'white',
+                border: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              {description ||
-                (canEdit
-                  ? 'No description added yet. Click "Edit Spotlight" above to add one.'
-                  : 'No description added yet.')}
-            </div>
-
-            {data.updatedAt && (
+              {isSaving ? (
+                <>
+                  <Loader2 size={14} className="spin" /> Saving...
+                </>
+              ) : (
+                <>
+                  <Check size={14} /> Save Spotlight
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          /* View mode: show the active photo's individual description */
+          (() => {
+            const activeDesc =
+              data.descriptions && data.descriptions.length > 0
+                ? data.descriptions[safeViewIndex] ?? ''
+                : description
+            return (
               <div
                 style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                  fontSize: 12,
-                  color: 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
+                  padding: '16px 20px',
+                  borderRadius: 12,
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border)',
                 }}
               >
-                <RefreshCw size={12} />
-                Last updated:{' '}
-                {new Date(data.updatedAt).toLocaleDateString(undefined, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {currentViewImages.length > 1 && activeDesc && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--accent-blue)',
+                      marginBottom: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Camera size={12} />
+                    Photo {safeViewIndex + 1} of {currentViewImages.length}
+                  </div>
+                )}
+                <div
+                  style={{
+                    fontSize: 15,
+                    color: activeDesc ? 'var(--text-primary)' : 'var(--text-muted)',
+                    lineHeight: 1.7,
+                    whiteSpace: 'pre-wrap',
+                    fontStyle: activeDesc ? 'normal' : 'italic',
+                    transition: 'opacity 200ms ease',
+                  }}
+                >
+                  {activeDesc ||
+                    (canEdit
+                      ? 'No description added yet. Click "Edit Spotlight" above to add one.'
+                      : 'No description added yet.')}
+                </div>
+
+                {data.updatedAt && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 10,
+                      borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                      fontSize: 12,
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <RefreshCw size={12} />
+                    Last updated:{' '}
+                    {new Date(data.updatedAt).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            )
+          })()
         )}
       </div>
 

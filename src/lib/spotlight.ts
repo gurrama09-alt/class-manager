@@ -4,6 +4,7 @@ export interface AboutSpotlightData {
   imageUrl: string | null
   images?: string[]
   description: string
+  descriptions?: string[]
   updatedAt: string | null
   updatedBy?: string | null
 }
@@ -12,6 +13,7 @@ const DEFAULT_SPOTLIGHT: AboutSpotlightData = {
   imageUrl: null,
   images: [],
   description: 'Welcome to Class Management! Stay tuned for the latest academic highlights, departmental announcements, and campus updates.',
+  descriptions: [],
   updatedAt: null,
 }
 
@@ -37,10 +39,24 @@ export async function getSpotlightData(): Promise<AboutSpotlightData> {
       images = [json.imageUrl.trim()]
     }
 
+    // Normalize per-photo descriptions for backward compatibility
+    let descriptions: string[] = []
+    if (Array.isArray(json.descriptions)) {
+      descriptions = json.descriptions.map((d: unknown) => (typeof d === 'string' ? d : ''))
+    } else if (typeof json.description === 'string' && json.description.trim().length > 0 && images.length > 0) {
+      // Legacy: single description becomes the first photo's description
+      descriptions = [json.description.trim()]
+    }
+    // Ensure descriptions array matches images length
+    while (descriptions.length < images.length) {
+      descriptions.push('')
+    }
+
     return {
       imageUrl: images[0] ?? json.imageUrl ?? null,
       images,
       description: json.description ?? '',
+      descriptions,
       updatedAt: json.updatedAt ?? null,
       updatedBy: json.updatedBy ?? null,
     }
@@ -49,3 +65,4 @@ export async function getSpotlightData(): Promise<AboutSpotlightData> {
     return DEFAULT_SPOTLIGHT
   }
 }
+

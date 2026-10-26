@@ -104,18 +104,24 @@ export async function POST(req: NextRequest) {
 
     // Build the final list of images
     let finalImages: string[] = []
+    let finalDescriptions: string[] = []
+
+    // Parse per-photo descriptions manifest (JSON string[])
+    const descriptionsManifestRaw = formData.get('descriptionsManifest') as string | null
 
     if (photoManifestRaw) {
       try {
         const manifest = JSON.parse(photoManifestRaw) as Array<
-          | { type: 'existing'; url: string }
-          | { type: 'new'; fileIndex: number }
+          | { type: 'existing'; url: string; description?: string }
+          | { type: 'new'; fileIndex: number; description?: string }
         >
         for (const item of manifest) {
           if (item.type === 'existing' && typeof item.url === 'string') {
             finalImages.push(item.url)
+            finalDescriptions.push(item.description ?? '')
           } else if (item.type === 'new' && typeof item.fileIndex === 'number' && uploadedUrls[item.fileIndex]) {
             finalImages.push(uploadedUrls[item.fileIndex])
+            finalDescriptions.push(item.description ?? '')
           }
         }
       } catch (e) {
@@ -137,10 +143,29 @@ export async function POST(req: NextRequest) {
       finalImages = [...currentImages, ...uploadedUrls]
     }
 
+    // If descriptions came from a separate manifest (fallback for non-photoManifest paths)
+    if (finalDescriptions.length === 0 && descriptionsManifestRaw) {
+      try {
+        const parsed = JSON.parse(descriptionsManifestRaw)
+        if (Array.isArray(parsed)) {
+          finalDescriptions = parsed.map((d: unknown) => (typeof d === 'string' ? d : ''))
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Ensure descriptions array matches images length
+    while (finalDescriptions.length < finalImages.length) {
+      finalDescriptions.push('')
+    }
+    finalDescriptions = finalDescriptions.slice(0, finalImages.length)
+
     const updatedData: AboutSpotlightData = {
       imageUrl: finalImages[0] ?? null,
       images: finalImages,
-      description: description.trim(),
+      description: description.trim() || finalDescriptions[0] || '',
+      descriptions: finalDescriptions,
       updatedAt: new Date().toISOString(),
       updatedBy: user.email,
     }
